@@ -66,6 +66,7 @@
 
 
 
+
 <script type="text/babel">
 
 // === supabase.js ===
@@ -677,13 +678,15 @@ function AuthScreen({ navigate, consentData }) {
     setError('');
     try {
       if (mode === 'signup') {
-        const { data, error: err } = await supabase.auth.signUp({ email, password, options: { data: { full_name: name, marketing_consent: consentData?.marketing, gdpr_consent: true, gdpr_date: new Date().toISOString() } } });
+        const redirectTo = window.location.hostname === 'localhost' ? window.location.origin : 'https://rosa-app-ten.vercel.app';
+        const { data, error: err } = await supabase.auth.signUp({ email, password, options: { emailRedirectTo: redirectTo, data: { full_name: name, marketing_consent: consentData?.marketing, gdpr_consent: true, gdpr_date: new Date().toISOString() } } });
         if (err) throw err;
         setMode('verify');
       } else if (mode === 'login') {
         const { data, error: err } = await supabase.auth.signInWithPassword({ email, password });
         if (err) throw err;
-        navigate('home');
+        const { data: profile } = await supabase.from('profiles').select('onboarding_complete').eq('id', data.user.id).single();
+        navigate(profile?.onboarding_complete ? 'home' : 'onboarding');
       } else {
         const { error: err } = await supabase.auth.resetPasswordForEmail(email);
         if (err) throw err;
@@ -1063,6 +1066,21 @@ function OnboardingScreen({ navigate }) {
     } else if (step < TOTAL) {
       setStep(s => s + 1);
     } else {
+      // Mark onboarding complete in Supabase
+      supabase.auth.getSession().then(({ data: { session } }) => {
+        if (session) {
+          supabase.from('profiles').update({
+            onboarding_complete: true,
+            life_stage: answers.lifeStage,
+            goals: answers.goals,
+            diet_type: answers.dietType,
+            allergies: answers.allergies,
+            height_cm: answers.imperial ? answers.height * 2.54 : answers.height,
+            weight_kg: answers.imperial ? answers.weight * 0.453592 : answers.weight,
+            body_type: answers.bodyType,
+          }).eq('id', session.user.id);
+        }
+      });
       navigate('home');
     }
   };
@@ -2379,6 +2397,55 @@ function ProfileScreen({ navigate }) {
 
 
 // === app.js ===
+// ─── DEV TEST MODE BUTTON ─────────────────────────────────────────────────────
+const ALL_SCREENS = ['splash','terms','auth','onboarding','home','programmes','programme_detail','workout','nutrition','progress','profile'];
+
+function DevTestButton({ screen, navigate }) {
+  const [open, setOpen] = useState(false);
+  const [touring, setTouring] = useState(false);
+  const tourRef = useRef(null);
+
+  const startTour = () => {
+    setOpen(false);
+    setTouring(true);
+    const stops = ['splash','terms','onboarding','home','programmes','workout','nutrition','progress','profile'];
+    let i = 0;
+    const tick = () => {
+      if (i >= stops.length) { setTouring(false); return; }
+      navigate(stops[i++]);
+      tourRef.current = setTimeout(tick, 2500);
+    };
+    tick();
+  };
+
+  useEffect(() => () => clearTimeout(tourRef.current), []);
+
+  return (
+    <div style={{ position:'fixed', bottom:'90px', right:'16px', zIndex:9999, display:'flex', flexDirection:'column', alignItems:'flex-end', gap:'8px' }}>
+      {open && (
+        <div style={{ background:'rgba(58,24,72,0.92)', backdropFilter:'blur(12px)', borderRadius:'14px', padding:'10px 0', minWidth:'170px', boxShadow:'0 8px 32px rgba(0,0,0,0.3)' }}>
+          <div style={{ fontFamily:'Outfit', fontSize:'10px', fontWeight:600, textTransform:'uppercase', letterSpacing:'0.12em', color:'rgba(200,184,232,0.5)', padding:'0 14px 8px' }}>Jump to screen</div>
+          {ALL_SCREENS.map(s => (
+            <button key={s} onClick={() => { navigate(s); setOpen(false); }}
+              style={{ display:'block', width:'100%', textAlign:'left', fontFamily:'Outfit', fontSize:'12px', color: s === screen ? '#C8B8E8' : 'rgba(255,255,255,0.75)', background: s === screen ? 'rgba(200,184,232,0.15)' : 'none', border:'none', padding:'7px 14px', cursor:'pointer', fontWeight: s === screen ? 600 : 400 }}>
+              {s === screen ? '▶ ' : ''}{s}
+            </button>
+          ))}
+          <div style={{ height:'0.5px', background:'rgba(200,184,232,0.2)', margin:'8px 0' }} />
+          <button onClick={startTour}
+            style={{ display:'block', width:'100%', textAlign:'left', fontFamily:'Outfit', fontSize:'12px', color:'#E8C8D8', background:'none', border:'none', padding:'7px 14px', cursor:'pointer', fontWeight:500 }}>
+            🎬 Auto-tour (2.5s each)
+          </button>
+        </div>
+      )}
+      <button onClick={() => setOpen(o => !o)}
+        style={{ fontFamily:'Outfit', fontSize:'11px', fontWeight:600, background: touring ? 'rgba(232,100,100,0.9)' : 'rgba(58,24,72,0.85)', color:'white', border:'none', borderRadius:'20px', padding:'7px 14px', cursor:'pointer', backdropFilter:'blur(8px)', boxShadow:'0 4px 16px rgba(0,0,0,0.25)', letterSpacing:'0.04em' }}>
+        {touring ? '⏹ Stop tour' : '🎬 Dev'}
+      </button>
+    </div>
+  );
+}
+
 // ─── ROOT APP ─────────────────────────────────────────────────────────────────
 function App() {
   const [screen, setScreen] = useState('splash');
@@ -2388,13 +2455,19 @@ function App() {
 
   // Check existing Supabase session on load
   useEffect(() => {
-    supabase.auth.getSession().then(({ data: { session } }) => {
-      if (session) setScreen('home');
+    supabase.auth.getSession().then(async ({ data: { session } }) => {
+      if (session) {
+        const { data: profile } = await supabase.from('profiles').select('onboarding_complete').eq('id', session.user.id).single();
+        setScreen(profile?.onboarding_complete ? 'home' : 'onboarding');
+      }
       setAuthChecked(true);
     });
 
-    const { data: { subscription } } = supabase.auth.onAuthStateChange((_event, session) => {
-      if (session && screen === 'auth') setScreen('home');
+    const { data: { subscription } } = supabase.auth.onAuthStateChange(async (_event, session) => {
+      if (session && screen === 'auth') {
+        const { data: profile } = await supabase.from('profiles').select('onboarding_complete').eq('id', session.user.id).single();
+        setScreen(profile?.onboarding_complete ? 'home' : 'onboarding');
+      }
     });
 
     return () => subscription.unsubscribe();
@@ -2421,32 +2494,29 @@ function App() {
     );
   }
 
-  switch (screen) {
-    case 'splash':
-      return <SplashScreen navigate={navigate} />;
-    case 'terms':
-      return <TermsScreen onAccept={handleTermsAccept} />;
-    case 'auth':
-      return <AuthScreen navigate={navigate} consentData={consentData} />;
-    case 'onboarding':
-      return <OnboardingScreen navigate={navigate} />;
-    case 'home':
-      return <HomeScreen navigate={navigate} />;
-    case 'programmes':
-      return <ProgrammesScreen navigate={navigate} />;
-    case 'programme_detail':
-      return <ProgrammeDetailScreen navigate={navigate} params={params} />;
-    case 'workout':
-      return <WorkoutPlayerScreen navigate={navigate} />;
-    case 'nutrition':
-      return <NutritionScreen navigate={navigate} />;
-    case 'progress':
-      return <ProgressScreen navigate={navigate} />;
-    case 'profile':
-      return <ProfileScreen navigate={navigate} />;
-    default:
-      return <SplashScreen navigate={navigate} />;
-  }
+  const screenEl = (() => {
+    switch (screen) {
+      case 'splash':         return <SplashScreen navigate={navigate} />;
+      case 'terms':          return <TermsScreen onAccept={handleTermsAccept} />;
+      case 'auth':           return <AuthScreen navigate={navigate} consentData={consentData} />;
+      case 'onboarding':     return <OnboardingScreen navigate={navigate} />;
+      case 'home':           return <HomeScreen navigate={navigate} />;
+      case 'programmes':     return <ProgrammesScreen navigate={navigate} />;
+      case 'programme_detail': return <ProgrammeDetailScreen navigate={navigate} params={params} />;
+      case 'workout':        return <WorkoutPlayerScreen navigate={navigate} />;
+      case 'nutrition':      return <NutritionScreen navigate={navigate} />;
+      case 'progress':       return <ProgressScreen navigate={navigate} />;
+      case 'profile':        return <ProfileScreen navigate={navigate} />;
+      default:               return <SplashScreen navigate={navigate} />;
+    }
+  })();
+
+  return (
+    <>
+      {screenEl}
+      <DevTestButton screen={screen} navigate={navigate} />
+    </>
+  );
 }
 
 const root = ReactDOM.createRoot(document.getElementById('root'));

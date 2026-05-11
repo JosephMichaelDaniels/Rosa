@@ -76,6 +76,21 @@ function OnboardingScreen({ navigate }) {
     } else if (step < TOTAL) {
       setStep(s => s + 1);
     } else {
+      // Mark onboarding complete in Supabase
+      supabase.auth.getSession().then(({ data: { session } }) => {
+        if (session) {
+          supabase.from('profiles').update({
+            onboarding_complete: true,
+            life_stage: answers.lifeStage,
+            goals: answers.goals,
+            diet_type: answers.dietType,
+            allergies: answers.allergies,
+            height_cm: answers.imperial ? answers.height * 2.54 : answers.height,
+            weight_kg: answers.imperial ? answers.weight * 0.453592 : answers.weight,
+            body_type: answers.bodyType,
+          }).eq('id', session.user.id);
+        }
+      });
       navigate('home');
     }
   };

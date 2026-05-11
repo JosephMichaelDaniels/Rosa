@@ -90,13 +90,15 @@ function AuthScreen({ navigate, consentData }) {
     setError('');
     try {
       if (mode === 'signup') {
-        const { data, error: err } = await supabase.auth.signUp({ email, password, options: { data: { full_name: name, marketing_consent: consentData?.marketing, gdpr_consent: true, gdpr_date: new Date().toISOString() } } });
+        const redirectTo = window.location.hostname === 'localhost' ? window.location.origin : 'https://rosa-app-ten.vercel.app';
+        const { data, error: err } = await supabase.auth.signUp({ email, password, options: { emailRedirectTo: redirectTo, data: { full_name: name, marketing_consent: consentData?.marketing, gdpr_consent: true, gdpr_date: new Date().toISOString() } } });
         if (err) throw err;
         setMode('verify');
       } else if (mode === 'login') {
         const { data, error: err } = await supabase.auth.signInWithPassword({ email, password });
         if (err) throw err;
-        navigate('home');
+        const { data: profile } = await supabase.from('profiles').select('onboarding_complete').eq('id', data.user.id).single();
+        navigate(profile?.onboarding_complete ? 'home' : 'onboarding');
       } else {
         const { error: err } = await supabase.auth.resetPasswordForEmail(email);
         if (err) throw err;
