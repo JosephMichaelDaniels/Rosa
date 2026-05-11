@@ -8,6 +8,7 @@
   <script crossorigin src="https://unpkg.com/react@18/umd/react.production.min.js"></script>
   <script crossorigin src="https://unpkg.com/react-dom@18/umd/react-dom.production.min.js"></script>
   <script src="https://unpkg.com/@babel/standalone/babel.min.js"></script>
+  <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2/dist/umd/supabase.min.js"></script>
   <style>
     :root {
       --rosa-violet:    #C8B8E8;
@@ -61,1893 +62,151 @@
 </head>
 <body>
 <div id="root"></div>
+
+
 <script type="text/babel">
 
-// === data.js ===
-// ─── MOCK DATA ───────────────────────────────────────────────────────────────
+// === supabase.js ===
+// ─── SUPABASE CLIENT ──────────────────────────────────────────────────────────
+// Replace SUPABASE_URL and SUPABASE_ANON_KEY once your project is created.
+// These are public/safe to expose in a frontend app.
 
-const USER = {
-  name: 'Sarah',
-  streak: 14,
-  programme: 'New Mum Reset',
-  programmeId: 'new_mum',
-  programmeWeek: 3,
-  programmeProgress: 0.38,
-  sessionsThisWeek: 3,
-  sessionsTarget: 4,
-  earnedBadges: ['first_workout', '7_day_streak', 'nutrition_week'],
-  macros: { kcal:1240, kcalTarget:1800, protein:98, proteinTarget:125, carbs:120, carbsTarget:180, fat:42, fatTarget:60 },
-};
+const SUPABASE_URL      = 'YOUR_SUPABASE_URL';
+const SUPABASE_ANON_KEY = 'YOUR_SUPABASE_ANON_KEY';
 
-const PROGRAMMES = [
-  { id:'new_mum',     name:'New Mum Reset',        tag:'Recovery',   tagline:"Your body grew life. Now let's rebuild it.", weeks:12, level:'All levels',       colour:'#9878B8', text:'#F2EEFB', active:true,  progress:0.38 },
-  { id:'pregnant',    name:'Stay Fit Pregnant',     tag:'Prenatal',   tagline:"You're growing life. You're not broken.",    weeks:0,  level:'Trimester-adj.',   colour:'#DDD5F5', text:'#3A1848', active:false, progress:0 },
-  { id:'booty',       name:'Booty Building',        tag:'Strength',   tagline:'Strength looks good on you.',                weeks:8,  level:'Beg → Adv',        colour:'#F8D0E4', text:'#3A1848', active:false, progress:0 },
-  { id:'core',        name:'Core & Pelvic Floor',   tag:'Foundation', tagline:'Your foundation. Your power.',               weeks:6,  level:'All levels',       colour:'#F2EEFB', text:'#3A1848', active:false, progress:0 },
-  { id:'composition', name:'Body Composition',      tag:'Transform',  tagline:'Recompose. Reclaim. Redefine.',              weeks:12, level:'Intermediate',     colour:'#FDEEE0', text:'#3A1848', active:false, progress:0 },
-  { id:'reset',       name:'Weight Reset',          tag:'Fat Loss',   tagline:'Sustainable. Not punishing.',                weeks:12, level:'All levels',       colour:'#FAEAF2', text:'#3A1848', active:false, progress:0 },
-  { id:'gain',        name:'Muscle & Weight Gain',  tag:'Build',      tagline:'Eat. Lift. Grow. Repeat.',                   weeks:12, level:'Int → Adv',        colour:'#7858A0', text:'#F2EEFB', active:false, progress:0 },
-];
-
-const TODAY_SESSION = { name:'Lower Body Sculpt', week:3, day:2, duration:45, exerciseCount:8, programme:'New Mum Reset' };
-
-const EXERCISES = [
-  { name:'Glute Bridge',      sets:3, reps:15, weight:0,  rest:60,  tip:'Squeeze glutes at the top of every rep.' },
-  { name:'Romanian Deadlift', sets:3, reps:12, weight:15, rest:90,  tip:'Keep back flat, hinge at the hips.' },
-  { name:'Sumo Squat',        sets:3, reps:12, weight:12, rest:60,  tip:'Toes out 45°, knees track over toes.' },
-  { name:'Hip Thrust',        sets:4, reps:10, weight:20, rest:90,  tip:'Drive through your heels, not your toes.' },
-  { name:'Lateral Band Walk', sets:3, reps:20, weight:0,  rest:45,  tip:'Keep constant tension on the band.' },
-  { name:'Single Leg RDL',    sets:3, reps:10, weight:8,  rest:60,  tip:'Slow and controlled — balance is the work.' },
-  { name:'Donkey Kick',       sets:3, reps:15, weight:0,  rest:45,  tip:'Engage core throughout the movement.' },
-  { name:'Cool Down Stretch', sets:1, reps:0,  weight:0,  rest:0,   tip:'Hold each stretch for 30–45 seconds.' },
-];
-
-const MEALS_TODAY = [
-  { id:1, name:'Greek yoghurt & berry bowl', kcal:320, protein:28, carbs:32, fat:8,  diet:['vegetarian'],          emoji:'🫐', time:'07:30' },
-  { id:2, name:'Salmon & quinoa bowl',        kcal:510, protein:42, carbs:38, fat:18, diet:['pescetarian'],         emoji:'🐟', time:'12:45' },
-  { id:3, name:'Protein shake',               kcal:210, protein:30, carbs:10, fat:4,  diet:['omnivore','vegetarian'],emoji:'🥛', time:'15:00' },
-];
-
-const KITCHEN_MEALS = [
-  { id:10, name:'High-Protein Overnight Oats', kcal:340, protein:30, carbs:42, fat:8,  diet:['vegetarian'],  allergens:['gluten','dairy'],  prepMins:5,  emoji:'🌙', category:'Breakfast', ingredients:['80g oats','200g Greek yoghurt','1 scoop protein powder','mixed berries','1 tbsp honey'], method:'Combine oats, yoghurt and protein in a jar. Top with berries. Refrigerate overnight.' },
-  { id:11, name:'Avocado & egg toast',          kcal:380, protein:22, carbs:28, fat:20, diet:['vegetarian'],  allergens:['gluten','eggs'],   prepMins:10, emoji:'🥑', category:'Breakfast', ingredients:['2 slices sourdough','1 avocado','2 eggs','chilli flakes','lemon'], method:'Toast bread. Mash avocado with lemon. Poach or fry eggs. Assemble and season.' },
-  { id:12, name:'Turkey & veg stir fry',        kcal:420, protein:40, carbs:22, fat:14, diet:['omnivore'],   allergens:['soy'],             prepMins:20, emoji:'🍜', category:'Dinner',    ingredients:['200g turkey mince','mixed veg','2 tbsp soy sauce','garlic','ginger','sesame oil'], method:'Stir fry turkey until cooked. Add veg and sauce. Cook 5 mins.' },
-  { id:13, name:'Lentil & spinach soup',        kcal:280, protein:18, carbs:38, fat:4,  diet:['vegan'],      allergens:[],                  prepMins:25, emoji:'🥣', category:'Lunch',     ingredients:['200g red lentils','200g spinach','1 tin tomatoes','onion','cumin','garlic'], method:'Soften onion and garlic. Add lentils, tomatoes and stock. Simmer 20 mins. Add spinach.' },
-  { id:14, name:'Baked salmon & sweet potato',  kcal:490, protein:44, carbs:35, fat:16, diet:['pescetarian'],allergens:['fish'],             prepMins:30, emoji:'🍠', category:'Dinner',    ingredients:['200g salmon fillet','1 sweet potato','lemon','olive oil','asparagus'], method:'Bake salmon at 200°C for 15 mins. Roast sweet potato cubes alongside.' },
-  { id:15, name:'Chickpea & tomato curry',      kcal:360, protein:16, carbs:52, fat:8,  diet:['vegan'],      allergens:[],                  prepMins:20, emoji:'🍛', category:'Dinner',    ingredients:['2 tins chickpeas','1 tin tomatoes','coconut milk','curry powder','onion','garlic'], method:'Cook onion and garlic. Add spices, tomatoes and chickpeas. Simmer 15 mins, add coconut milk.' },
-  { id:16, name:'Cottage cheese & cucumber',    kcal:140, protein:18, carbs:8,  fat:3,  diet:['vegetarian'],  allergens:['dairy'],           prepMins:2,  emoji:'🥒', category:'Snack',     ingredients:['150g cottage cheese','half cucumber','black pepper','chives'], method:'Slice cucumber, top with cottage cheese and season.' },
-  { id:17, name:'Chicken & roasted veg wrap',   kcal:420, protein:38, carbs:32, fat:12, diet:['omnivore'],   allergens:['gluten'],           prepMins:15, emoji:'🌯', category:'Lunch',     ingredients:['150g chicken breast','1 wholemeal wrap','mixed peppers','rocket','hummus'], method:'Grill chicken and peppers. Spread wrap with hummus, fill and roll.' },
-];
-
-const BADGES = [
-  { id:'first_workout',     name:'First Workout',     emoji:'🏆', desc:'Complete your first session' },
-  { id:'7_day_streak',      name:'7-Day Streak',       emoji:'🔥', desc:'7 consecutive days logged' },
-  { id:'nutrition_week',    name:'Nutrition Week',     emoji:'🥗', desc:'7 days of food logging' },
-  { id:'30_days',           name:'30 Days Strong',     emoji:'⭐', desc:'30-day streak' },
-  { id:'pb_week',           name:'PB Week',            emoji:'💪', desc:'Log a personal best' },
-  { id:'programme_complete',name:'Programme Complete', emoji:'🎯', desc:'Finish any programme' },
-  { id:'new_mum_warrior',   name:'New Mum Warrior',    emoji:'👶', desc:'Complete New Mum Reset' },
-  { id:'champion',          name:'Champion',           emoji:'🏅', desc:'Complete 3 programmes' },
-  { id:'rosa_approved',     name:'Rosa Approved',      emoji:'👑', desc:'Complete 5 programmes' },
-  { id:'kitchen_queen',     name:'Kitchen Queen',      emoji:'👩‍🍳', desc:'Log 50 meals from ROSA Kitchen' },
-  { id:'consistent',        name:'Consistent',         emoji:'📅', desc:'4 sessions/week for 4 weeks' },
-  { id:'unstoppable',       name:'Unstoppable',        emoji:'⚡', desc:'90-day streak' },
-];
-
-const WEEKLY_DATA = [
-  { week:'Wk 1', sessions:3 },
-  { week:'Wk 2', sessions:4 },
-  { week:'Wk 3', sessions:3 },
-  { week:'Wk 4', sessions:2 },
-  { week:'Wk 5', sessions:4 },
-  { week:'Wk 6', sessions:3 },
-];
-
-const ROSA_TIPS = [
-  "Your body remembers every session, even the ones that felt hard.",
-  "Pelvic floor work isn't optional — it's your foundation for everything.",
-  "Recovery is not weakness. It's where the real change happens.",
-  "You don't need to be perfect. You just need to show up.",
-  "Strong looks different on everyone. Find your strong.",
-  "Protein isn't just for gym bros. It's how you rebuild, repair, and rise.",
-];
-
-// ─── BRAIN MATRIX ────────────────────────────────────────────────────────────
-function computeMatrix(answers) {
-  const { lifeStage, goals = [], daysPerWeek, equipment, dietType } = answers;
-
-  let primary = 'new_mum';
-  let secondary = null;
-  let reason = '';
-
-  if (lifeStage === 'pregnant') {
-    primary = 'pregnant';
-    reason = "Because you're currently pregnant, Rosa has matched you with a trimester-adjusted programme that keeps you and your baby safe while maintaining your fitness and strength throughout each phase.";
-  } else if (lifeStage === 'new_baby') {
-    primary = 'new_mum';
-    secondary = 'core';
-    reason = "You're in your first six months post-birth — the most important window for recovery. Rosa's New Mum Reset is built specifically for this stage, with pelvic floor-first sequencing and safe progressive loading.";
-  } else if (goals.includes('lose_fat') && goals.includes('build_muscle')) {
-    primary = 'composition';
-    reason = "You want to both lose fat and build muscle — that's body recomposition. Rosa's 12-week programme combines strength training with strategic cardio and nutrition-aligned macros to transform your composition simultaneously.";
-  } else if (goals.includes('build_muscle') || goals.includes('gain_weight')) {
-    primary = 'gain';
-    reason = "Your goal is building visible muscle and strength. Rosa designed this programme to take on the cultural myth that lifting makes women 'bulky' — and to give you the lean, strong physique that comes from progressive overload.";
-  } else if (goals.includes('lose_fat')) {
-    primary = 'reset';
-    reason = "Your goal is sustainable fat loss — not a crash diet. Rosa's Weight Reset is cycle-aware, preserves your muscle throughout, and builds habits that last long beyond the programme.";
-  } else if (goals.includes('booty')) {
-    primary = 'booty';
-    reason = "You're focused on building your glutes and lower body strength. Rosa's Booty Building programme uses progressive overload across 8 weeks with pelvic floor integration in every session.";
-  } else if (goals.includes('core') || goals.includes('pelvic_floor')) {
-    primary = 'core';
-    reason = "Core strength and pelvic floor health are your foundation — and Rosa's 6-week programme addresses both together. Whether you're post-natal or not, this transforms how you move in every other exercise.";
-  } else {
-    primary = 'composition';
-    reason = "Based on your profile, Rosa recommends her all-over Body Composition programme — 12 weeks of strength and cardio hybrid training designed to reshape and strengthen your entire body.";
-  }
-
-  if (!secondary && primary !== 'core' && (lifeStage === 'post_baby_6_24' || lifeStage === 'post_baby_2plus')) {
-    secondary = 'core';
-  }
-
-  // Macro calc: simple TDEE estimate
-  const height = answers.height || 165;
-  const weight = answers.weight || 65;
-  const bmr = 10 * weight + 6.25 * height - 5 * 25 - 161;
-  const activityFactor = daysPerWeek >= 5 ? 1.55 : daysPerWeek >= 3 ? 1.375 : 1.2;
-  const tdee = Math.round(bmr * activityFactor);
-  const deficit = goals.includes('lose_fat') ? -300 : goals.includes('build_muscle') ? 200 : 0;
-  const kcal = tdee + deficit;
-  const protein = Math.round(weight * 2.0);
-  const fat = Math.round((kcal * 0.28) / 9);
-  const carbs = Math.round((kcal - protein * 4 - fat * 9) / 4);
-
-  const prog = PROGRAMMES.find(p => p.id === primary);
-  const sec  = secondary ? PROGRAMMES.find(p => p.id === secondary) : null;
-
-  return { primary: prog, secondary: sec, reason, kcal, protein, carbs, fat };
-}
-
-
-// === components.js ===
-// ─── CORE COMPONENTS ─────────────────────────────────────────────────────────
-const { useState, useEffect, useRef, useCallback } = React;
-
-// ── AppBackground ─────────────────────────────────────────────────────────────
-function AppBackground({ children }) {
-  return (
-    <div style={{ minHeight:'100vh', background:'linear-gradient(150deg,#F2EEFB 0%,#FDEEE0 45%,#F8D0E4 100%)', position:'relative', overflowX:'hidden' }}>
-      <div style={{ position:'fixed', top:'-30px', right:'-30px', width:'180px', height:'180px', borderRadius:'50%', background:'rgba(248,208,228,0.45)', filter:'blur(40px)', pointerEvents:'none', zIndex:0 }} />
-      <div style={{ position:'fixed', bottom:'-20px', left:'-20px', width:'140px', height:'140px', borderRadius:'50%', background:'rgba(200,184,232,0.3)', filter:'blur(32px)', pointerEvents:'none', zIndex:0 }} />
-      <div style={{ position:'relative', zIndex:1 }}>{children}</div>
-    </div>
-  );
-}
-
-// ── GlassCard ─────────────────────────────────────────────────────────────────
-function GlassCard({ children, strong, accent, amethyst, dark, style={}, onClick, className='' }) {
-  const base = {
-    background:     amethyst ? '#9878B8' : dark ? '#7858A0' : strong ? 'rgba(255,255,255,0.58)' : 'rgba(255,255,255,0.45)',
-    border:         amethyst || dark ? 'none' : accent ? '1.5px solid rgba(248,208,228,0.85)' : '0.5px solid rgba(255,255,255,0.85)',
-    borderRadius:   '16px',
-    backdropFilter: amethyst || dark ? 'none' : 'blur(16px)',
-    WebkitBackdropFilter: amethyst || dark ? 'none' : 'blur(16px)',
-    padding:        '14px',
-    ...style,
-  };
-  return <div style={base} onClick={onClick} className={className}>{children}</div>;
-}
-
-// ── PillButton ────────────────────────────────────────────────────────────────
-function PillButton({ children, variant='primary', onClick, style={}, disabled=false, small=false }) {
-  const v = {
-    primary:   { background:'#9878B8', color:'#F2EEFB' },
-    secondary: { background:'rgba(255,255,255,0.55)', color:'#3A1848', border:'0.5px solid rgba(255,255,255,0.85)' },
-    ghost:     { background:'transparent', color:'#3A1848', border:'1.5px solid rgba(152,120,184,0.35)' },
-    powder:    { background:'rgba(248,208,228,0.6)', color:'#3A1848', border:'1px solid rgba(248,208,228,0.85)' },
-  };
-  return (
-    <button
-      onClick={onClick}
-      disabled={disabled}
-      style={{
-        borderRadius:'24px',
-        padding: small ? '8px 16px' : '13px 28px',
-        fontSize: small ? '12px' : '13px',
-        fontWeight:500,
-        letterSpacing:'0.01em',
-        border:'none',
-        cursor: disabled ? 'default' : 'pointer',
-        opacity: disabled ? 0.5 : 1,
-        transition:'transform 0.1s, opacity 0.15s',
-        ...v[variant],
-        ...style,
-      }}
-      onMouseDown={e => e.currentTarget.style.transform='scale(0.97)'}
-      onMouseUp={e => e.currentTarget.style.transform='scale(1)'}
-      onTouchStart={e => e.currentTarget.style.transform='scale(0.97)'}
-      onTouchEnd={e => e.currentTarget.style.transform='scale(1)'}
-    >
-      {children}
-    </button>
-  );
-}
-
-// ── ProgressRing ──────────────────────────────────────────────────────────────
-function ProgressRing({ completed, total, size=96 }) {
-  const r = (size / 2) - 10;
-  const circ = 2 * Math.PI * r;
-  const pct = total > 0 ? completed / total : 0;
-  const [animated, setAnimated] = useState(0);
-
-  useEffect(() => {
-    let frame;
-    let start = null;
-    const duration = 900;
-    const animate = (ts) => {
-      if (!start) start = ts;
-      const elapsed = ts - start;
-      const progress = Math.min(elapsed / duration, 1);
-      const eased = 1 - Math.pow(1 - progress, 3);
-      setAnimated(eased * pct);
-      if (progress < 1) frame = requestAnimationFrame(animate);
-    };
-    frame = requestAnimationFrame(animate);
-    return () => cancelAnimationFrame(frame);
-  }, [pct]);
-
-  const offset = circ - animated * circ;
-  return (
-    <svg width={size} height={size} viewBox={`0 0 ${size} ${size}`} style={{ display:'block' }}>
-      <circle cx={size/2} cy={size/2} r={r} fill="none" stroke="rgba(255,255,255,0.5)" strokeWidth="9"/>
-      <circle cx={size/2} cy={size/2} r={r} fill="none" stroke="#C8B8E8" strokeWidth="9"
-        strokeDasharray={circ} strokeDashoffset={offset}
-        strokeLinecap="round" transform={`rotate(-90 ${size/2} ${size/2})`}
-        style={{ transition:'none' }}/>
-      <circle cx={size/2} cy={size/2} r={r} fill="none" stroke="#F8D0E4" strokeWidth="3"
-        strokeDasharray={`${circ * 0.08} ${circ * 0.92}`} strokeLinecap="round"
-        transform={`rotate(${-90 + animated * 360} ${size/2} ${size/2})`} opacity="0.9"/>
-      <text x={size/2} y={size/2 - 5} textAnchor="middle" fill="#3A1848"
-        fontSize="17" fontFamily="Gilda Display, serif">{completed}/{total}</text>
-      <text x={size/2} y={size/2 + 12} textAnchor="middle" fill="rgba(152,120,184,0.65)"
-        fontSize="9" fontFamily="Outfit, sans-serif">sessions</text>
-    </svg>
-  );
-}
-
-// ── MacroBar ──────────────────────────────────────────────────────────────────
-function MacroBar({ label, value, target, colour='#C8B8E8' }) {
-  const pct = Math.min((value / target) * 100, 100);
-  return (
-    <div style={{ marginBottom:'10px' }}>
-      <div style={{ display:'flex', justifyContent:'space-between', marginBottom:'5px' }}>
-        <span style={{ fontFamily:'Outfit', fontSize:'12px', fontWeight:400, color:'#3A1848' }}>{label}</span>
-        <span style={{ fontFamily:'Outfit', fontSize:'12px', color:'rgba(152,120,184,0.7)' }}>{value} / {target}g</span>
-      </div>
-      <div style={{ height:'6px', background:'rgba(255,255,255,0.5)', borderRadius:'3px', overflow:'hidden' }}>
-        <div style={{ height:'100%', width:`${pct}%`, background:colour, borderRadius:'3px', transition:'width 0.8s cubic-bezier(0.34,1.56,0.64,1)' }}/>
-      </div>
-    </div>
-  );
-}
-
-// ── BadgeItem ─────────────────────────────────────────────────────────────────
-function BadgeItem({ badge, earned }) {
-  return (
-    <div style={{ display:'flex', flexDirection:'column', alignItems:'center', gap:'5px',
-      animation: earned ? 'badgePop 0.6s ease-out both' : 'none' }}>
-      <div style={{
-        width:'52px', height:'52px', borderRadius:'50%', display:'flex', alignItems:'center', justifyContent:'center',
-        fontSize:'22px',
-        background: earned ? 'rgba(248,208,228,0.6)' : 'rgba(255,255,255,0.3)',
-        border: earned ? '1.5px solid rgba(248,208,228,0.9)' : '0.5px solid rgba(255,255,255,0.5)',
-        opacity: earned ? 1 : 0.4,
-        boxShadow: earned ? '0 0 12px rgba(248,208,228,0.5)' : 'none',
-      }}>
-        {badge.emoji}
-      </div>
-      <span style={{ fontFamily:'Outfit', fontSize:'9px', fontWeight:500, textTransform:'uppercase', letterSpacing:'0.07em', color:earned ? '#3A1848' : 'rgba(152,120,184,0.5)', textAlign:'center', maxWidth:'58px' }}>
-        {badge.name}
-      </span>
-    </div>
-  );
-}
-
-// ── StreakBanner ──────────────────────────────────────────────────────────────
-function StreakBanner({ streak, style={} }) {
-  const [display, setDisplay] = useState(0);
-  useEffect(() => {
-    let i = 0;
-    const timer = setInterval(() => {
-      i++;
-      setDisplay(i);
-      if (i >= streak) clearInterval(timer);
-    }, 60);
-    return () => clearInterval(timer);
-  }, [streak]);
-
-  return (
-    <GlassCard amethyst style={{ display:'flex', alignItems:'center', justifyContent:'space-between', padding:'14px 18px', ...style }}>
-      <div>
-        <div style={{ fontFamily:'Outfit', fontSize:'10px', fontWeight:500, textTransform:'uppercase', letterSpacing:'0.1em', color:'rgba(242,238,251,0.7)', marginBottom:'2px' }}>Current Streak</div>
-        <div style={{ fontFamily:'Gilda Display', fontSize:'32px', color:'#F2EEFB', lineHeight:1 }}>{display}</div>
-        <div style={{ fontFamily:'Outfit', fontSize:'11px', color:'rgba(242,238,251,0.7)', marginTop:'2px' }}>days in a row</div>
-      </div>
-      <div style={{ fontSize:'44px', animation:'timerTick 2s ease-in-out infinite' }}>🔥</div>
-    </GlassCard>
-  );
-}
-
-// ── SectionHeader ─────────────────────────────────────────────────────────────
-function SectionHeader({ children }) {
-  return (
-    <div style={{ fontFamily:'Outfit', fontSize:'10px', fontWeight:500, textTransform:'uppercase', letterSpacing:'0.1em', color:'rgba(152,120,184,0.65)', marginBottom:'10px', marginTop:'4px' }}>
-      {children}
-    </div>
-  );
-}
-
-// ── BottomNav ─────────────────────────────────────────────────────────────────
-function BottomNav({ active, navigate }) {
-  const tabs = [
-    { id:'home',        label:'Home',       icon:HomeIcon },
-    { id:'programmes',  label:'Train',      icon:BoltIcon },
-    { id:'nutrition',   label:'Nutrition',  icon:LeafIcon },
-    { id:'progress',    label:'Progress',   icon:ChartIcon },
-    { id:'profile',     label:'Me',         icon:UserIcon },
-  ];
-  return (
-    <div style={{
-      position:'fixed', bottom:0, left:'50%', transform:'translateX(-50%)',
-      width:'100%', maxWidth:'390px',
-      background:'rgba(255,255,255,0.75)', backdropFilter:'blur(20px)', WebkitBackdropFilter:'blur(20px)',
-      borderTop:'0.5px solid rgba(255,255,255,0.9)',
-      display:'flex', justifyContent:'space-around', alignItems:'center',
-      padding:'10px 0 20px', zIndex:100,
-    }}>
-      {tabs.map(t => {
-        const isActive = active === t.id;
-        const Icon = t.icon;
-        return (
-          <button key={t.id} onClick={() => navigate(t.id)} style={{ display:'flex', flexDirection:'column', alignItems:'center', gap:'3px', background:'none', border:'none', cursor:'pointer', padding:'4px 8px' }}>
-            <Icon size={24} color={isActive ? '#9878B8' : 'rgba(152,120,184,0.3)'} filled={isActive} />
-            <span style={{ fontFamily:'Outfit', fontSize:'10px', fontWeight: isActive ? 500 : 400, color: isActive ? '#9878B8' : 'rgba(152,120,184,0.4)' }}>{t.label}</span>
-            {isActive && <div style={{ width:'4px', height:'4px', borderRadius:'50%', background:'#9878B8', marginTop:'1px' }} />}
-          </button>
-        );
-      })}
-    </div>
-  );
-}
-
-// ── SVG Icons ─────────────────────────────────────────────────────────────────
-function HomeIcon({ size=24, color, filled }) {
-  return (
-    <svg width={size} height={size} viewBox="0 0 24 24" fill="none" stroke={color} strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round">
-      {filled
-        ? <path d="M3 9.5L12 3l9 6.5V20a1 1 0 01-1 1H4a1 1 0 01-1-1V9.5z" fill={color} stroke="none"/>
-        : <><path d="M3 9.5L12 3l9 6.5"/><path d="M9 21V12h6v9"/><rect x="3" y="9" width="18" height="12" rx="1"/></>}
-    </svg>
-  );
-}
-function BoltIcon({ size=24, color, filled }) {
-  return (
-    <svg width={size} height={size} viewBox="0 0 24 24" fill={filled ? color : 'none'} stroke={color} strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round">
-      <path d="M13 3L4 14h7l-1 7 9-11h-7l1-7z"/>
-    </svg>
-  );
-}
-function LeafIcon({ size=24, color, filled }) {
-  return (
-    <svg width={size} height={size} viewBox="0 0 24 24" fill={filled ? color : 'none'} stroke={color} strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round">
-      <path d="M5 21C5 21 19 17 21 5C19 5 5 7 5 21z"/>
-      <path d="M5 21L12 14"/>
-    </svg>
-  );
-}
-function ChartIcon({ size=24, color, filled }) {
-  return (
-    <svg width={size} height={size} viewBox="0 0 24 24" fill="none" stroke={color} strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round">
-      {filled
-        ? <><rect x="3" y="12" width="4" height="9" rx="1" fill={color}/><rect x="10" y="7" width="4" height="14" rx="1" fill={color}/><rect x="17" y="3" width="4" height="18" rx="1" fill={color}/></>
-        : <><path d="M3 21V12"/><path d="M10 21V7"/><path d="M17 21V3"/></>}
-    </svg>
-  );
-}
-function UserIcon({ size=24, color, filled }) {
-  return (
-    <svg width={size} height={size} viewBox="0 0 24 24" fill={filled ? color : 'none'} stroke={color} strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round">
-      <circle cx="12" cy="8" r="4"/>
-      <path d="M4 20c0-4 3.6-7 8-7s8 3 8 7"/>
-    </svg>
-  );
-}
-function BackIcon({ size=20, color='#3A1848' }) {
-  return (
-    <svg width={size} height={size} viewBox="0 0 24 24" fill="none" stroke={color} strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round">
-      <path d="M19 12H5M12 5l-7 7 7 7"/>
-    </svg>
-  );
-}
-function CheckIcon({ size=16, color='#F2EEFB' }) {
-  return (
-    <svg width={size} height={size} viewBox="0 0 24 24" fill="none" stroke={color} strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round">
-      <path d="M5 13l4 4L19 7"/>
-    </svg>
-  );
-}
-function PlusIcon({ size=20, color='#9878B8' }) {
-  return (
-    <svg width={size} height={size} viewBox="0 0 24 24" fill="none" stroke={color} strokeWidth="1.5" strokeLinecap="round">
-      <path d="M12 5v14M5 12h14"/>
-    </svg>
-  );
-}
-function CloseIcon({ size=20, color='#3A1848' }) {
-  return (
-    <svg width={size} height={size} viewBox="0 0 24 24" fill="none" stroke={color} strokeWidth="1.5" strokeLinecap="round">
-      <path d="M18 6L6 18M6 6l12 12"/>
-    </svg>
-  );
-}
-
-// ── MiniBarChart ──────────────────────────────────────────────────────────────
-function MiniBarChart({ data }) {
-  const max = Math.max(...data.map(d => d.sessions), 1);
-  const H = 100, W = 280, barW = 32, gap = (W - data.length * barW) / (data.length + 1);
-  return (
-    <svg width="100%" viewBox={`0 0 ${W} ${H + 24}`} style={{ display:'block' }}>
-      {data.map((d, i) => {
-        const x = gap + i * (barW + gap);
-        const barH = (d.sessions / max) * H;
-        const y = H - barH;
-        return (
-          <g key={i}>
-            <rect x={x} y={y} width={barW} height={barH} rx="6" fill="#C8B8E8" opacity="0.85"/>
-            <text x={x + barW/2} y={H + 16} textAnchor="middle" fontFamily="Outfit" fontSize="9" fill="rgba(152,120,184,0.7)">{d.week}</text>
-            <text x={x + barW/2} y={y - 4} textAnchor="middle" fontFamily="Outfit" fontSize="9" fill="#9878B8">{d.sessions}</text>
-          </g>
-        );
-      })}
-    </svg>
-  );
-}
-
-// ── Screen wrapper ────────────────────────────────────────────────────────────
-function Screen({ children, pad=true, scrollable=true, withNav=false }) {
-  return (
-    <div className="fadeUp" style={{
-      minHeight:'100vh',
-      paddingBottom: withNav ? '90px' : 0,
-      overflowY: scrollable ? 'auto' : 'hidden',
-    }}>
-      <div style={{ padding: pad ? '0 20px' : 0 }}>
-        {children}
-      </div>
-    </div>
-  );
-}
-
-
-// === screens-splash-onboarding.js ===
-// ─── SPLASH SCREEN ────────────────────────────────────────────────────────────
-function SplashScreen({ navigate }) {
-  return (
-    <AppBackground>
-      <div style={{ minHeight:'100vh', display:'flex', flexDirection:'column', alignItems:'center', justifyContent:'center', padding:'40px 32px', textAlign:'center' }}>
-        <div className="fadeUp" style={{ animationDelay:'0.1s' }}>
-          <div style={{ fontFamily:'Gilda Display', fontSize:'72px', color:'#3A1848', lineHeight:1, letterSpacing:'0.05em', marginBottom:'16px' }}>
-            ROSA
-          </div>
-          <div style={{ fontFamily:'Gilda Display', fontSize:'20px', color:'rgba(152,120,184,0.85)', marginBottom:'24px', fontStyle:'italic', lineHeight:1.4 }}>
-            Redefining what's possible after pregnancy.
-          </div>
-        </div>
-
-        <div className="fadeUp" style={{ animationDelay:'0.3s', maxWidth:'280px', marginBottom:'56px' }}>
-          <div style={{ width:'48px', height:'1px', background:'rgba(200,184,232,0.4)', margin:'0 auto 20px' }} />
-          <p style={{ fontFamily:'Outfit', fontSize:'14px', fontWeight:300, color:'rgba(152,120,184,0.85)', lineHeight:1.7, fontStyle:'italic' }}>
-            "I proved the mould was a lie. Now it's your turn."
-          </p>
-          <p style={{ fontFamily:'Outfit', fontSize:'11px', fontWeight:400, color:'rgba(152,120,184,0.55)', marginTop:'8px' }}>— Rosa</p>
-        </div>
-
-        <div className="fadeUp" style={{ animationDelay:'0.5s', display:'flex', flexDirection:'column', alignItems:'center', gap:'12px', width:'100%' }}>
-          <PillButton onClick={() => navigate('onboarding')} style={{ width:'100%', maxWidth:'280px', padding:'16px 28px', fontSize:'14px' }}>
-            Begin your journey
-          </PillButton>
-          <button onClick={() => navigate('home')} style={{ fontFamily:'Outfit', fontSize:'12px', color:'rgba(152,120,184,0.6)', background:'none', border:'none', cursor:'pointer' }}>
-            I already have an account
-          </button>
-        </div>
-
-        <div className="fadeUp" style={{ animationDelay:'0.7s', position:'absolute', bottom:'40px', display:'flex', alignItems:'center', gap:'8px' }}>
-          <div style={{ width:'28px', height:'1px', background:'rgba(200,184,232,0.35)' }} />
-          <span style={{ fontFamily:'Outfit', fontSize:'9px', fontWeight:500, textTransform:'uppercase', letterSpacing:'0.15em', color:'rgba(152,120,184,0.4)' }}>
-            Built by a champion. For champions.
-          </span>
-          <div style={{ width:'28px', height:'1px', background:'rgba(200,184,232,0.35)' }} />
-        </div>
-      </div>
-    </AppBackground>
-  );
-}
-
-// ─── ONBOARDING ───────────────────────────────────────────────────────────────
-function OnboardingScreen({ navigate }) {
-  const [step, setStep] = useState(1);
-  const TOTAL = 7;
-  const [answers, setAnswers] = useState({
-    lifeStage: null,
-    height: 165,
-    weight: 65,
-    imperial: false,
-    bodyType: null,
-    goals: [],
-    daysPerWeek: 3,
-    sessionLength: 45,
-    equipment: 'gym',
-    dietType: 'omnivore',
-    allergies: [],
+// Minimal Supabase client (no npm — uses the CDN JS bundle loaded in index.html)
+// If not yet configured, all auth calls are gracefully no-ops so the UI still works.
+let supabase;
+try {
+  supabase = window.supabase.createClient(SUPABASE_URL, SUPABASE_ANON_KEY, {
+    auth: {
+      autoRefreshToken: true,
+      persistSession: true,
+      detectSessionInUrl: true,
+    },
   });
-  const [matrix, setMatrix] = useState(null);
-  const [revealing, setRevealing] = useState(false);
-  const [revealed, setRevealed] = useState(false);
-
-  const update = (key, val) => setAnswers(a => ({ ...a, [key]: val }));
-
-  const next = () => {
-    if (step === 6) {
-      setStep(7);
-      setRevealing(true);
-      setTimeout(() => {
-        setMatrix(computeMatrix(answers));
-        setRevealing(false);
-        setRevealed(true);
-      }, 2200);
-    } else if (step < TOTAL) {
-      setStep(s => s + 1);
-    } else {
-      navigate('home');
-    }
+} catch (e) {
+  // Supabase not yet configured — stub so UI renders
+  supabase = {
+    auth: {
+      signUp:                 async () => ({ data: null, error: { message: 'Supabase not configured yet.' } }),
+      signInWithPassword:     async () => ({ data: null, error: { message: 'Supabase not configured yet.' } }),
+      signInWithOAuth:        async () => ({ data: null, error: { message: 'Supabase not configured yet.' } }),
+      resetPasswordForEmail:  async () => ({ data: null, error: null }),
+      signOut:                async () => ({}),
+      getSession:             async () => ({ data: { session: null } }),
+      onAuthStateChange:      (cb) => { cb('SIGNED_OUT', null); return { data: { subscription: { unsubscribe: () => {} } } }; },
+    },
+    from: () => ({
+      select: async () => ({ data: [], error: null }),
+      insert: async () => ({ data: null, error: null }),
+      update: async () => ({ data: null, error: null }),
+      delete: async () => ({ data: null, error: null }),
+    }),
   };
-  const back = () => step > 1 && setStep(s => s - 1);
+}
 
-  const canContinue = () => {
-    if (step === 2) return !!answers.lifeStage;
-    if (step === 4) return answers.goals.length > 0;
-    return true;
-  };
+// ─── DATABASE SCHEMA (run in Supabase SQL editor) ─────────────────────────────
+/*
+-- Enable UUID extension
+create extension if not exists "uuid-ossp";
 
-  return (
-    <AppBackground>
-      <div style={{ minHeight:'100vh', display:'flex', flexDirection:'column', padding:'0 20px 32px' }}>
-        {/* Header */}
-        <div style={{ display:'flex', alignItems:'center', justifyContent:'space-between', paddingTop:'56px', paddingBottom:'24px' }}>
-          {step > 1
-            ? <button onClick={back} style={{ background:'none', border:'none', cursor:'pointer', padding:'4px' }}><BackIcon /></button>
-            : <div style={{ width:'28px' }} />}
-          <div style={{ display:'flex', gap:'6px' }}>
-            {Array.from({length:TOTAL}).map((_,i) => (
-              <div key={i} style={{ width: i+1===step ? '20px' : '6px', height:'6px', borderRadius:'3px', background: i+1<=step ? '#9878B8' : 'rgba(152,120,184,0.25)', transition:'all 0.3s ease' }} />
-            ))}
-          </div>
-          <div style={{ width:'28px' }} />
-        </div>
+-- User profiles (extends Supabase auth.users)
+create table public.profiles (
+  id              uuid references auth.users(id) on delete cascade primary key,
+  full_name       text,
+  avatar_url      text,
+  streak          int default 0,
+  last_active     date,
+  programme_id    text,
+  programme_week  int default 1,
+  programme_progress float default 0,
+  life_stage      text,
+  goals           text[],
+  diet_type       text default 'omnivore',
+  allergies       text[],
+  height_cm       float,
+  weight_kg       float,
+  body_type       text,
+  kcal_target     int default 1800,
+  protein_target  int default 125,
+  carbs_target    int default 180,
+  fat_target      int default 60,
+  gdpr_consent    boolean default false,
+  gdpr_date       timestamptz,
+  marketing_consent boolean default false,
+  created_at      timestamptz default now(),
+  updated_at      timestamptz default now()
+);
 
-        {/* Step content */}
-        <div key={step} className="slideL" style={{ flex:1, display:'flex', flexDirection:'column' }}>
-          {step === 1 && <Step1 />}
-          {step === 2 && <Step2 answers={answers} update={update} />}
-          {step === 3 && <Step3 answers={answers} update={update} />}
-          {step === 4 && <Step4 answers={answers} update={update} />}
-          {step === 5 && <Step5 answers={answers} update={update} />}
-          {step === 6 && <Step6 answers={answers} update={update} />}
-          {step === 7 && <Step7 revealing={revealing} revealed={revealed} matrix={matrix} answers={answers} />}
-        </div>
+-- Workout sessions
+create table public.sessions (
+  id            uuid default uuid_generate_v4() primary key,
+  user_id       uuid references auth.users(id) on delete cascade,
+  programme_id  text,
+  session_name  text,
+  week          int,
+  day           int,
+  duration_mins int,
+  completed_at  timestamptz default now(),
+  exercises     jsonb
+);
 
-        {/* CTA */}
-        {!(step === 7 && !revealed) && (
-          <div style={{ paddingTop:'20px' }}>
-            {step === 7 && revealed
-              ? <PillButton onClick={() => navigate('home')} style={{ width:'100%', padding:'16px' }}>Let's start →</PillButton>
-              : step < 7
-                ? <PillButton onClick={next} disabled={!canContinue()} style={{ width:'100%', padding:'16px' }}>
-                    {step === 6 ? 'Find my match' : 'Continue'}
-                  </PillButton>
-                : null}
-          </div>
-        )}
-      </div>
-    </AppBackground>
+-- Nutrition logs
+create table public.nutrition_logs (
+  id          uuid default uuid_generate_v4() primary key,
+  user_id     uuid references auth.users(id) on delete cascade,
+  meal_name   text,
+  meal_id     int,
+  kcal        int,
+  protein     float,
+  carbs       float,
+  fat         float,
+  portions    float default 1,
+  logged_at   timestamptz default now()
+);
+
+-- Badges earned
+create table public.badges (
+  id          uuid default uuid_generate_v4() primary key,
+  user_id     uuid references auth.users(id) on delete cascade,
+  badge_id    text,
+  earned_at   timestamptz default now()
+);
+
+-- Row Level Security
+alter table public.profiles       enable row level security;
+alter table public.sessions       enable row level security;
+alter table public.nutrition_logs enable row level security;
+alter table public.badges         enable row level security;
+
+-- RLS policies: users can only access their own data
+create policy "Own profile" on public.profiles       for all using (auth.uid() = id);
+create policy "Own sessions" on public.sessions      for all using (auth.uid() = user_id);
+create policy "Own nutrition" on public.nutrition_logs for all using (auth.uid() = user_id);
+create policy "Own badges"   on public.badges        for all using (auth.uid() = user_id);
+
+-- Auto-create profile on signup
+create or replace function public.handle_new_user()
+returns trigger language plpgsql security definer as $$
+begin
+  insert into public.profiles (id, full_name, gdpr_consent, gdpr_date, marketing_consent)
+  values (
+    new.id,
+    new.raw_user_meta_data->>'full_name',
+    (new.raw_user_meta_data->>'gdpr_consent')::boolean,
+    (new.raw_user_meta_data->>'gdpr_date')::timestamptz,
+    (new.raw_user_meta_data->>'marketing_consent')::boolean
   );
-}
+  return new;
+end;
+$$;
+
+create trigger on_auth_user_created
+  after insert on auth.users
+  for each row execute procedure public.handle_new_user();
+*/
 
-// ── Step 1: Welcome ───────────────────────────────────────────────────────────
-function Step1() {
-  return (
-    <div>
-      <div style={{ fontFamily:'Gilda Display', fontSize:'32px', color:'#3A1848', lineHeight:1.2, marginBottom:'8px' }}>Welcome.</div>
-      <div style={{ fontFamily:'Outfit', fontSize:'14px', color:'rgba(152,120,184,0.7)', marginBottom:'28px' }}>Let's build your programme together.</div>
-      <GlassCard strong accent style={{ padding:'20px' }}>
-        <div style={{ width:'56px', height:'56px', borderRadius:'50%', background:'linear-gradient(135deg,#9878B8,#C8B8E8)', marginBottom:'16px', display:'flex', alignItems:'center', justifyContent:'center', fontSize:'24px' }}>💪</div>
-        <p style={{ fontFamily:'Gilda Display', fontSize:'18px', color:'rgba(152,120,184,0.85)', fontStyle:'italic', lineHeight:1.6, marginBottom:'14px' }}>
-          "I had three babies. Three surgeries. I was 35. Everyone said my body was different now."
-        </p>
-        <p style={{ fontFamily:'Outfit', fontSize:'14px', fontWeight:300, color:'rgba(58,24,72,0.7)', lineHeight:1.7 }}>
-          I decided to prove them wrong — and I did. This app is everything I know, built for you. 15 years of elite expertise. Your personal programme starts now.
-        </p>
-        <div style={{ marginTop:'16px', paddingTop:'16px', borderTop:'0.5px solid rgba(200,184,232,0.3)', fontFamily:'Outfit', fontSize:'12px', color:'rgba(152,120,184,0.6)', fontStyle:'italic' }}>
-          — Rosa, European &amp; British Bodybuilding Champion
-        </div>
-      </GlassCard>
-      <div style={{ marginTop:'20px', display:'flex', gap:'10px' }}>
-        {['7 specialist programmes','AI programme matching','Nutrition tracking'].map(f => (
-          <div key={f} style={{ flex:1, textAlign:'center' }}>
-            <div style={{ fontFamily:'Outfit', fontSize:'9px', fontWeight:500, textTransform:'uppercase', letterSpacing:'0.07em', color:'rgba(152,120,184,0.65)', lineHeight:1.4 }}>{f}</div>
-          </div>
-        ))}
-      </div>
-    </div>
-  );
-}
-
-// ── Step 2: Life Stage ────────────────────────────────────────────────────────
-const LIFE_STAGES = [
-  { id:'new_baby',      label:'Just had a baby',       sub:'0–6 months post-birth',   emoji:'👶' },
-  { id:'post_baby_6_24',label:'Post-baby',              sub:'6–24 months',              emoji:'🌱' },
-  { id:'post_baby_2plus',label:'Post-baby',             sub:'2+ years',                 emoji:'💪' },
-  { id:'pregnant',      label:'Currently pregnant',    sub:'Any trimester',            emoji:'🤰' },
-  { id:'no_children',   label:'No children',           sub:'Fitness focused',          emoji:'⚡' },
-];
-function Step2({ answers, update }) {
-  return (
-    <div>
-      <div style={{ fontFamily:'Gilda Display', fontSize:'28px', color:'#3A1848', marginBottom:'6px' }}>Where are you right now?</div>
-      <div style={{ fontFamily:'Outfit', fontSize:'14px', color:'rgba(152,120,184,0.7)', marginBottom:'24px' }}>This shapes everything Rosa builds for you.</div>
-      <div style={{ display:'flex', flexDirection:'column', gap:'10px' }}>
-        {LIFE_STAGES.map(s => {
-          const sel = answers.lifeStage === s.id;
-          return (
-            <GlassCard key={s.id} strong={sel} accent={sel}
-              onClick={() => update('lifeStage', s.id)}
-              style={{ display:'flex', alignItems:'center', gap:'14px', cursor:'pointer', border: sel ? '1.5px solid rgba(152,120,184,0.7)' : '0.5px solid rgba(255,255,255,0.85)', transition:'all 0.15s' }}>
-              <div style={{ width:'40px', height:'40px', borderRadius:'50%', background: sel ? 'rgba(152,120,184,0.15)' : 'rgba(255,255,255,0.4)', display:'flex', alignItems:'center', justifyContent:'center', fontSize:'20px', flexShrink:0 }}>
-                {s.emoji}
-              </div>
-              <div style={{ flex:1 }}>
-                <div style={{ fontFamily:'Outfit', fontSize:'14px', fontWeight:500, color:'#3A1848' }}>{s.label}</div>
-                <div style={{ fontFamily:'Outfit', fontSize:'12px', color:'rgba(152,120,184,0.7)' }}>{s.sub}</div>
-              </div>
-              {sel && <div style={{ width:'20px', height:'20px', borderRadius:'50%', background:'#9878B8', display:'flex', alignItems:'center', justifyContent:'center', flexShrink:0 }}><CheckIcon /></div>}
-            </GlassCard>
-          );
-        })}
-      </div>
-    </div>
-  );
-}
-
-// ── Step 3: Body Stats ────────────────────────────────────────────────────────
-const BODY_TYPES = [
-  { id:'ectomorph',  label:'Lean',    sub:'Naturally slim, hard to gain',  emoji:'🏃‍♀️' },
-  { id:'mesomorph',  label:'Athletic',sub:'Builds muscle easily',           emoji:'🏋️‍♀️' },
-  { id:'endomorph',  label:'Curvy',   sub:'Gains weight more easily',      emoji:'💃' },
-];
-function Step3({ answers, update }) {
-  const imp = answers.imperial;
-  return (
-    <div>
-      <div style={{ fontFamily:'Gilda Display', fontSize:'28px', color:'#3A1848', marginBottom:'6px' }}>Your body today.</div>
-      <div style={{ fontFamily:'Outfit', fontSize:'14px', color:'rgba(152,120,184,0.7)', marginBottom:'20px' }}>Used to calculate your personal macro targets.</div>
-      <GlassCard style={{ marginBottom:'16px' }}>
-        <div style={{ display:'flex', justifyContent:'space-between', alignItems:'center', marginBottom:'14px' }}>
-          <span style={{ fontFamily:'Outfit', fontSize:'13px', fontWeight:500, color:'#3A1848' }}>Units</span>
-          <div style={{ display:'flex', borderRadius:'20px', overflow:'hidden', border:'0.5px solid rgba(152,120,184,0.25)' }}>
-            {['Metric','Imperial'].map((u,i) => (
-              <button key={u} onClick={() => update('imperial', i===1)} style={{ padding:'6px 14px', fontSize:'12px', fontFamily:'Outfit', fontWeight: (imp===false&&i===0)||(imp===true&&i===1) ? 500 : 400, background: (imp===false&&i===0)||(imp===true&&i===1) ? '#9878B8' : 'transparent', color: (imp===false&&i===0)||(imp===true&&i===1) ? '#F2EEFB' : 'rgba(152,120,184,0.7)', border:'none', cursor:'pointer' }}>{u}</button>
-            ))}
-          </div>
-        </div>
-        <div style={{ display:'grid', gridTemplateColumns:'1fr 1fr', gap:'12px' }}>
-          {[{label: imp ? 'Height (ft)' : 'Height (cm)', key:'height', def: imp ? 5.4 : 165},
-            {label: imp ? 'Weight (lbs)' : 'Weight (kg)', key:'weight', def: imp ? 143 : 65}].map(f => (
-            <div key={f.key}>
-              <div style={{ fontFamily:'Outfit', fontSize:'11px', fontWeight:500, textTransform:'uppercase', letterSpacing:'0.08em', color:'rgba(152,120,184,0.65)', marginBottom:'6px' }}>{f.label}</div>
-              <input
-                type="number"
-                defaultValue={answers[f.key] || f.def}
-                onChange={e => update(f.key, Number(e.target.value))}
-                style={{ width:'100%', padding:'12px 14px', borderRadius:'12px', border:'0.5px solid rgba(200,184,232,0.4)', background:'rgba(253,238,224,0.4)', fontFamily:'Gilda Display', fontSize:'22px', color:'#3A1848', textAlign:'center' }}
-              />
-            </div>
-          ))}
-        </div>
-      </GlassCard>
-      <SectionHeader>Body Type</SectionHeader>
-      <div style={{ display:'grid', gridTemplateColumns:'repeat(3,1fr)', gap:'8px' }}>
-        {BODY_TYPES.map(b => {
-          const sel = answers.bodyType === b.id;
-          return (
-            <GlassCard key={b.id} strong={sel} onClick={() => update('bodyType', b.id)}
-              style={{ textAlign:'center', cursor:'pointer', border: sel ? '1.5px solid rgba(152,120,184,0.7)' : '0.5px solid rgba(255,255,255,0.85)', padding:'12px 8px' }}>
-              <div style={{ fontSize:'24px', marginBottom:'6px' }}>{b.emoji}</div>
-              <div style={{ fontFamily:'Outfit', fontSize:'13px', fontWeight:500, color:'#3A1848' }}>{b.label}</div>
-              <div style={{ fontFamily:'Outfit', fontSize:'10px', color:'rgba(152,120,184,0.65)', marginTop:'3px', lineHeight:1.3 }}>{b.sub}</div>
-            </GlassCard>
-          );
-        })}
-      </div>
-    </div>
-  );
-}
-
-// ── Step 4: Goals ─────────────────────────────────────────────────────────────
-const GOALS = [
-  { id:'lose_fat',      label:'Lose body fat',              emoji:'🔥' },
-  { id:'build_muscle',  label:'Build muscle & strength',    emoji:'💪' },
-  { id:'core',          label:'Core & pelvic floor',        emoji:'🎯' },
-  { id:'rebuild',       label:'Rebuild after birth',        emoji:'🌱' },
-  { id:'prenatal',      label:'Train safely in pregnancy',  emoji:'🤰' },
-  { id:'booty',         label:'All-over body composition',  emoji:'⚡' },
-  { id:'energy',        label:'Improve energy & wellbeing', emoji:'✨' },
-];
-function Step4({ answers, update }) {
-  const toggle = (id) => {
-    const current = answers.goals;
-    if (current.includes(id)) {
-      update('goals', current.filter(g => g !== id));
-    } else if (current.length < 2) {
-      update('goals', [...current, id]);
-    }
-  };
-  return (
-    <div>
-      <div style={{ fontFamily:'Gilda Display', fontSize:'28px', color:'#3A1848', marginBottom:'6px' }}>What's your goal?</div>
-      <div style={{ fontFamily:'Outfit', fontSize:'14px', color:'rgba(152,120,184,0.7)', marginBottom:'8px' }}>Pick up to two. Rosa will prioritise them.</div>
-      <div style={{ fontFamily:'Outfit', fontSize:'11px', color:'rgba(152,120,184,0.5)', marginBottom:'20px' }}>{answers.goals.length}/2 selected</div>
-      <div style={{ display:'flex', flexDirection:'column', gap:'8px' }}>
-        {GOALS.map(g => {
-          const sel = answers.goals.includes(g.id);
-          const disabled = !sel && answers.goals.length >= 2;
-          return (
-            <GlassCard key={g.id} strong={sel} onClick={() => !disabled && toggle(g.id)}
-              style={{ display:'flex', alignItems:'center', gap:'12px', cursor: disabled ? 'default' : 'pointer', opacity: disabled ? 0.45 : 1, border: sel ? '1.5px solid rgba(152,120,184,0.7)' : '0.5px solid rgba(255,255,255,0.85)' }}>
-              <span style={{ fontSize:'20px' }}>{g.emoji}</span>
-              <span style={{ fontFamily:'Outfit', fontSize:'14px', fontWeight: sel ? 500 : 400, color:'#3A1848', flex:1 }}>{g.label}</span>
-              {sel && <div style={{ width:'20px', height:'20px', borderRadius:'50%', background:'#9878B8', display:'flex', alignItems:'center', justifyContent:'center' }}><CheckIcon /></div>}
-            </GlassCard>
-          );
-        })}
-      </div>
-    </div>
-  );
-}
-
-// ── Step 5: Time & Equipment ──────────────────────────────────────────────────
-function Step5({ answers, update }) {
-  const durations = [20, 30, 45, 60];
-  const equipOptions = [
-    { id:'home_none', label:'Home / No equipment', emoji:'🏠' },
-    { id:'home_bands',label:'Home + Bands/Dumbbells', emoji:'🏋️' },
-    { id:'gym',       label:'Full gym access', emoji:'🏢' },
-  ];
-  return (
-    <div>
-      <div style={{ fontFamily:'Gilda Display', fontSize:'28px', color:'#3A1848', marginBottom:'6px' }}>Your time.</div>
-      <div style={{ fontFamily:'Outfit', fontSize:'14px', color:'rgba(152,120,184,0.7)', marginBottom:'24px' }}>Rosa works around your life, not the other way.</div>
-
-      <SectionHeader>Days per week</SectionHeader>
-      <div style={{ display:'flex', gap:'6px', marginBottom:'20px', flexWrap:'wrap' }}>
-        {[1,2,3,4,5,6,7].map(d => {
-          const sel = answers.daysPerWeek === d;
-          return (
-            <button key={d} onClick={() => update('daysPerWeek', d)}
-              style={{ width:'40px', height:'40px', borderRadius:'50%', background: sel ? '#9878B8' : 'rgba(255,255,255,0.5)', color: sel ? '#F2EEFB' : '#3A1848', fontFamily:'Outfit', fontSize:'14px', fontWeight:500, border: sel ? 'none' : '0.5px solid rgba(200,184,232,0.4)', cursor:'pointer' }}>
-              {d}
-            </button>
-          );
-        })}
-      </div>
-
-      <SectionHeader>Session length</SectionHeader>
-      <div style={{ display:'flex', gap:'8px', marginBottom:'20px' }}>
-        {durations.map(d => {
-          const sel = answers.sessionLength === d;
-          return (
-            <button key={d} onClick={() => update('sessionLength', d)}
-              style={{ flex:1, padding:'10px 4px', borderRadius:'24px', background: sel ? '#9878B8' : 'rgba(255,255,255,0.5)', color: sel ? '#F2EEFB' : '#3A1848', fontFamily:'Outfit', fontSize:'12px', fontWeight:500, border: sel ? 'none' : '0.5px solid rgba(200,184,232,0.4)', cursor:'pointer' }}>
-              {d}min
-            </button>
-          );
-        })}
-      </div>
-
-      <SectionHeader>Equipment</SectionHeader>
-      <div style={{ display:'flex', flexDirection:'column', gap:'8px' }}>
-        {equipOptions.map(e => {
-          const sel = answers.equipment === e.id;
-          return (
-            <GlassCard key={e.id} strong={sel} onClick={() => update('equipment', e.id)}
-              style={{ display:'flex', alignItems:'center', gap:'12px', cursor:'pointer', border: sel ? '1.5px solid rgba(152,120,184,0.7)' : '0.5px solid rgba(255,255,255,0.85)' }}>
-              <span style={{ fontSize:'20px' }}>{e.emoji}</span>
-              <span style={{ fontFamily:'Outfit', fontSize:'14px', color:'#3A1848', fontWeight: sel ? 500 : 400 }}>{e.label}</span>
-              {sel && <div style={{ marginLeft:'auto', width:'20px', height:'20px', borderRadius:'50%', background:'#9878B8', display:'flex', alignItems:'center', justifyContent:'center' }}><CheckIcon /></div>}
-            </GlassCard>
-          );
-        })}
-      </div>
-    </div>
-  );
-}
-
-// ── Step 6: Nutrition ─────────────────────────────────────────────────────────
-const DIET_TYPES = [
-  { id:'omnivore',     label:'Omnivore',     emoji:'🍗' },
-  { id:'pescetarian',  label:'Pescetarian',  emoji:'🐟' },
-  { id:'vegetarian',   label:'Vegetarian',   emoji:'🥦' },
-  { id:'vegan',        label:'Vegan',        emoji:'🌱' },
-];
-const ALLERGENS = ['Gluten','Dairy','Nuts','Eggs','Soy','Shellfish'];
-function Step6({ answers, update }) {
-  const toggleAllergen = (a) => {
-    const cur = answers.allergies;
-    update('allergies', cur.includes(a) ? cur.filter(x => x!==a) : [...cur, a]);
-  };
-  return (
-    <div>
-      <div style={{ fontFamily:'Gilda Display', fontSize:'28px', color:'#3A1848', marginBottom:'6px' }}>Nutrition preferences.</div>
-      <div style={{ fontFamily:'Outfit', fontSize:'14px', color:'rgba(152,120,184,0.7)', marginBottom:'24px' }}>ROSA Kitchen will filter to what works for you.</div>
-
-      <SectionHeader>Diet type</SectionHeader>
-      <div style={{ display:'grid', gridTemplateColumns:'1fr 1fr', gap:'8px', marginBottom:'20px' }}>
-        {DIET_TYPES.map(d => {
-          const sel = answers.dietType === d.id;
-          return (
-            <GlassCard key={d.id} strong={sel} onClick={() => update('dietType', d.id)}
-              style={{ display:'flex', alignItems:'center', gap:'10px', cursor:'pointer', border: sel ? '1.5px solid rgba(152,120,184,0.7)' : '0.5px solid rgba(255,255,255,0.85)' }}>
-              <span style={{ fontSize:'20px' }}>{d.emoji}</span>
-              <span style={{ fontFamily:'Outfit', fontSize:'13px', fontWeight: sel ? 500 : 400, color:'#3A1848' }}>{d.label}</span>
-            </GlassCard>
-          );
-        })}
-      </div>
-
-      <SectionHeader>Allergies / intolerances</SectionHeader>
-      <div style={{ display:'flex', flexWrap:'wrap', gap:'8px' }}>
-        {ALLERGENS.map(a => {
-          const sel = answers.allergies.includes(a);
-          return (
-            <button key={a} onClick={() => toggleAllergen(a)}
-              style={{ padding:'8px 16px', borderRadius:'24px', fontFamily:'Outfit', fontSize:'12px', fontWeight:500, cursor:'pointer', background: sel ? '#9878B8' : 'rgba(255,255,255,0.5)', color: sel ? '#F2EEFB' : '#3A1848', border: sel ? 'none' : '0.5px solid rgba(200,184,232,0.4)' }}>
-              {sel ? '✓ ' : ''}{a}-free
-            </button>
-          );
-        })}
-      </div>
-      {answers.allergies.length === 0 && (
-        <div style={{ fontFamily:'Outfit', fontSize:'12px', color:'rgba(152,120,184,0.5)', marginTop:'12px' }}>No restrictions — you're good with everything.</div>
-      )}
-    </div>
-  );
-}
-
-// ── Step 7: Matrix Reveal ─────────────────────────────────────────────────────
-function Step7({ revealing, revealed, matrix }) {
-  const [macroAnim, setMacroAnim] = useState(false);
-  useEffect(() => {
-    if (revealed) setTimeout(() => setMacroAnim(true), 400);
-  }, [revealed]);
-
-  if (revealing) {
-    return (
-      <div style={{ flex:1, display:'flex', flexDirection:'column', alignItems:'center', justifyContent:'center', gap:'16px' }}>
-        <div style={{ width:'48px', height:'48px', borderRadius:'50%', border:'3px solid #C8B8E8', borderTopColor:'#9878B8', animation:'spin 0.9s linear infinite' }} />
-        <div style={{ fontFamily:'Outfit', fontSize:'14px', fontWeight:300, color:'rgba(152,120,184,0.7)', animation:'pulse 1.5s ease-in-out infinite' }}>
-          Finding your perfect match...
-        </div>
-        <div style={{ fontFamily:'Outfit', fontSize:'12px', color:'rgba(152,120,184,0.5)' }}>Rosa's analysing your profile</div>
-      </div>
-    );
-  }
-
-  if (!revealed || !matrix) {
-    return <div style={{ flex:1, display:'flex', alignItems:'center', justifyContent:'center' }}><div style={{ animation:'pulse 1.5s ease-in-out infinite', fontFamily:'Outfit', fontSize:'14px', color:'rgba(152,120,184,0.6)' }}>Preparing your matrix…</div></div>;
-  }
-
-  const { primary, secondary, reason, kcal, protein, carbs, fat } = matrix;
-
-  return (
-    <div style={{ flex:1 }}>
-      <div className="fadeUp" style={{ fontFamily:'Outfit', fontSize:'13px', color:'rgba(152,120,184,0.7)', marginBottom:'8px' }}>
-        Based on everything you've told us, Rosa has matched you with:
-      </div>
-
-      <GlassCard amethyst style={{ padding:'20px', marginBottom:'14px' }} className="scaleIn">
-        <div style={{ fontFamily:'Outfit', fontSize:'10px', fontWeight:500, textTransform:'uppercase', letterSpacing:'0.1em', color:'rgba(242,238,251,0.65)', marginBottom:'6px' }}>Your programme</div>
-        <div style={{ fontFamily:'Gilda Display', fontSize:'28px', color:'#F2EEFB', lineHeight:1.2, marginBottom:'10px' }}>{primary.name}</div>
-        <div style={{ display:'flex', gap:'8px', marginBottom:'12px' }}>
-          <span style={{ padding:'4px 10px', borderRadius:'12px', background:'rgba(255,255,255,0.15)', fontFamily:'Outfit', fontSize:'11px', color:'rgba(242,238,251,0.8)' }}>{primary.tag}</span>
-          <span style={{ padding:'4px 10px', borderRadius:'12px', background:'rgba(255,255,255,0.15)', fontFamily:'Outfit', fontSize:'11px', color:'rgba(242,238,251,0.8)' }}>{primary.weeks > 0 ? `${primary.weeks} weeks` : 'Trimester-based'}</span>
-        </div>
-        <p style={{ fontFamily:'Outfit', fontSize:'13px', fontWeight:300, color:'rgba(242,238,251,0.85)', lineHeight:1.7 }}>{reason}</p>
-      </GlassCard>
-
-      {secondary && (
-        <GlassCard style={{ marginBottom:'14px' }}>
-          <div style={{ fontFamily:'Outfit', fontSize:'10px', fontWeight:500, textTransform:'uppercase', letterSpacing:'0.1em', color:'rgba(152,120,184,0.65)', marginBottom:'6px' }}>Rosa also recommends</div>
-          <div style={{ fontFamily:'Gilda Display', fontSize:'18px', color:'#3A1848' }}>{secondary.name}</div>
-          <div style={{ fontFamily:'Outfit', fontSize:'12px', color:'rgba(152,120,184,0.7)', marginTop:'3px' }}>As a complementary add-on</div>
-        </GlassCard>
-      )}
-
-      <SectionHeader>Your daily targets</SectionHeader>
-      <div style={{ display:'grid', gridTemplateColumns:'repeat(4,1fr)', gap:'8px' }}>
-        {[{label:'Calories', val:kcal, unit:'kcal'},{label:'Protein',val:protein,unit:'g'},{label:'Carbs',val:carbs,unit:'g'},{label:'Fat',val:fat,unit:'g'}].map((m,i) => (
-          <GlassCard key={m.label} strong style={{ textAlign:'center', padding:'12px 8px', animation: macroAnim ? `countUp 0.4s ease-out ${i*0.1}s both` : 'none' }}>
-            <div style={{ fontFamily:'Gilda Display', fontSize:'20px', color:'#3A1848' }}>{m.val}</div>
-            <div style={{ fontFamily:'Outfit', fontSize:'9px', color:'rgba(152,120,184,0.65)', marginTop:'2px' }}>{m.unit}</div>
-            <div style={{ fontFamily:'Outfit', fontSize:'9px', fontWeight:500, textTransform:'uppercase', letterSpacing:'0.06em', color:'rgba(152,120,184,0.5)', marginTop:'3px' }}>{m.label}</div>
-          </GlassCard>
-        ))}
-      </div>
-    </div>
-  );
-}
-
-
-// === screens-home-programmes.js ===
-// ─── HOME SCREEN ──────────────────────────────────────────────────────────────
-function HomeScreen({ navigate }) {
-  const tip = ROSA_TIPS[Math.floor(Math.random() * ROSA_TIPS.length)];
-  const [tipOpen, setTipOpen] = useState(false);
-  const hour = new Date().getHours();
-  const greeting = hour < 12 ? 'Good morning' : hour < 17 ? 'Good afternoon' : 'Good evening';
-
-  return (
-    <AppBackground>
-      <Screen withNav scrollable>
-        {/* Header */}
-        <div style={{ paddingTop:'56px', marginBottom:'20px' }}>
-          <div style={{ fontFamily:'Outfit', fontSize:'15px', fontWeight:300, color:'rgba(152,120,184,0.8)' }}>{greeting},</div>
-          <div style={{ fontFamily:'Gilda Display', fontSize:'34px', color:'#3A1848', lineHeight:1.1 }}>{USER.name}.</div>
-        </div>
-
-        {/* Progress ring + streak row */}
-        <div style={{ display:'flex', gap:'12px', marginBottom:'16px', alignItems:'stretch' }}>
-          <GlassCard strong accent style={{ flex:'0 0 auto', display:'flex', flexDirection:'column', alignItems:'center', justifyContent:'center', padding:'18px 14px' }}>
-            <ProgressRing completed={USER.sessionsThisWeek} total={USER.sessionsTarget} size={96} />
-            <div style={{ fontFamily:'Outfit', fontSize:'10px', fontWeight:500, textTransform:'uppercase', letterSpacing:'0.08em', color:'rgba(152,120,184,0.6)', marginTop:'8px' }}>This week</div>
-          </GlassCard>
-
-          <div style={{ flex:1, display:'flex', flexDirection:'column', gap:'12px' }}>
-            <StreakBanner streak={USER.streak} style={{ flex:1 }} />
-            <GlassCard style={{ padding:'12px 14px' }}>
-              <div style={{ fontFamily:'Outfit', fontSize:'10px', fontWeight:500, textTransform:'uppercase', letterSpacing:'0.08em', color:'rgba(152,120,184,0.6)', marginBottom:'4px' }}>Programme</div>
-              <div style={{ fontFamily:'Gilda Display', fontSize:'14px', color:'#3A1848', lineHeight:1.3 }}>{USER.programme}</div>
-              <div style={{ fontFamily:'Outfit', fontSize:'11px', color:'rgba(152,120,184,0.65)', marginTop:'2px' }}>Week {USER.programmeWeek}</div>
-              <div style={{ marginTop:'8px', height:'4px', borderRadius:'2px', background:'rgba(255,255,255,0.5)' }}>
-                <div style={{ height:'100%', width:`${USER.programmeProgress*100}%`, background:'#C8B8E8', borderRadius:'2px', transition:'width 1s ease' }} />
-              </div>
-            </GlassCard>
-          </div>
-        </div>
-
-        {/* Today's session */}
-        <SectionHeader>Today's session</SectionHeader>
-        <GlassCard strong accent style={{ marginBottom:'16px' }}>
-          <div style={{ display:'flex', justifyContent:'space-between', alignItems:'flex-start', marginBottom:'12px' }}>
-            <div>
-              <div style={{ fontFamily:'Gilda Display', fontSize:'22px', color:'#3A1848', marginBottom:'4px' }}>{TODAY_SESSION.name}</div>
-              <div style={{ fontFamily:'Outfit', fontSize:'12px', color:'rgba(152,120,184,0.7)' }}>Week {TODAY_SESSION.week} · Day {TODAY_SESSION.day}</div>
-            </div>
-            <div style={{ padding:'6px 12px', borderRadius:'12px', background:'rgba(200,184,232,0.25)', fontFamily:'Outfit', fontSize:'11px', color:'#9878B8', fontWeight:500 }}>
-              {TODAY_SESSION.duration} min
-            </div>
-          </div>
-          <div style={{ display:'flex', gap:'8px', marginBottom:'14px' }}>
-            {[`${TODAY_SESSION.exerciseCount} exercises`, TODAY_SESSION.programme, 'Lower body'].map(t => (
-              <span key={t} style={{ padding:'4px 10px', borderRadius:'10px', background:'rgba(255,255,255,0.45)', fontFamily:'Outfit', fontSize:'10px', color:'rgba(58,24,72,0.65)', border:'0.5px solid rgba(255,255,255,0.85)' }}>{t}</span>
-            ))}
-          </div>
-          <PillButton onClick={() => navigate('workout')} style={{ width:'100%', padding:'13px' }}>
-            Start session →
-          </PillButton>
-        </GlassCard>
-
-        {/* Nutrition summary */}
-        <SectionHeader>Today's nutrition</SectionHeader>
-        <GlassCard style={{ marginBottom:'16px' }}>
-          <div style={{ display:'flex', justifyContent:'space-between', alignItems:'center', marginBottom:'10px' }}>
-            <div>
-              <span style={{ fontFamily:'Gilda Display', fontSize:'28px', color:'#3A1848' }}>{USER.macros.kcal}</span>
-              <span style={{ fontFamily:'Outfit', fontSize:'13px', color:'rgba(152,120,184,0.65)', marginLeft:'4px' }}>/ {USER.macros.kcalTarget} kcal</span>
-            </div>
-            <PillButton variant="ghost" small onClick={() => navigate('nutrition')}>View →</PillButton>
-          </div>
-          <div style={{ height:'6px', borderRadius:'3px', background:'rgba(255,255,255,0.5)', marginBottom:'12px', overflow:'hidden' }}>
-            <div style={{ height:'100%', width:`${(USER.macros.kcal/USER.macros.kcalTarget)*100}%`, background:'linear-gradient(90deg,#C8B8E8,#F8D0E4)', borderRadius:'3px' }} />
-          </div>
-          <div style={{ display:'grid', gridTemplateColumns:'repeat(3,1fr)', gap:'8px' }}>
-            {[{l:'Protein',v:USER.macros.protein,t:USER.macros.proteinTarget,c:'#C8B8E8'},
-              {l:'Carbs',  v:USER.macros.carbs,  t:USER.macros.carbsTarget,  c:'#F8D0E4'},
-              {l:'Fat',    v:USER.macros.fat,     t:USER.macros.fatTarget,    c:'#DDD5F5'}].map(m => (
-              <div key={m.l} style={{ textAlign:'center' }}>
-                <div style={{ fontFamily:'Gilda Display', fontSize:'18px', color:'#3A1848' }}>{m.v}<span style={{ fontSize:'11px', fontFamily:'Outfit', color:'rgba(152,120,184,0.6)' }}>g</span></div>
-                <div style={{ fontFamily:'Outfit', fontSize:'9px', textTransform:'uppercase', letterSpacing:'0.07em', color:'rgba(152,120,184,0.6)', marginTop:'2px' }}>{m.l}</div>
-                <div style={{ height:'3px', borderRadius:'2px', background:'rgba(255,255,255,0.5)', marginTop:'5px', overflow:'hidden' }}>
-                  <div style={{ height:'100%', width:`${Math.min((m.v/m.t)*100,100)}%`, background:m.c, borderRadius:'2px' }} />
-                </div>
-              </div>
-            ))}
-          </div>
-        </GlassCard>
-
-        {/* Rosa's tip */}
-        <SectionHeader>Rosa's tip</SectionHeader>
-        <GlassCard style={{ marginBottom:'20px' }}>
-          <div style={{ display:'flex', justifyContent:'space-between', alignItems:'flex-start' }}>
-            <div style={{ flex:1 }}>
-              <div style={{ display:'flex', gap:'8px', alignItems:'center', marginBottom:'8px' }}>
-                <div style={{ width:'28px', height:'28px', borderRadius:'50%', background:'linear-gradient(135deg,#9878B8,#C8B8E8)', display:'flex', alignItems:'center', justifyContent:'center', fontSize:'12px' }}>💡</div>
-                <span style={{ fontFamily:'Outfit', fontSize:'11px', fontWeight:500, textTransform:'uppercase', letterSpacing:'0.08em', color:'rgba(152,120,184,0.65)' }}>From Rosa</span>
-              </div>
-              <p style={{ fontFamily:'Gilda Display', fontSize:'15px', color:'rgba(152,120,184,0.85)', fontStyle:'italic', lineHeight:1.6 }}>
-                "{tip}"
-              </p>
-            </div>
-          </div>
-        </GlassCard>
-
-        {/* Recent badge */}
-        {USER.earnedBadges.length > 0 && (() => {
-          const latest = BADGES.find(b => b.id === USER.earnedBadges[USER.earnedBadges.length - 1]);
-          return latest ? (
-            <>
-              <SectionHeader>Latest achievement</SectionHeader>
-              <GlassCard strong style={{ display:'flex', alignItems:'center', gap:'14px', marginBottom:'20px' }}>
-                <div style={{ width:'52px', height:'52px', borderRadius:'50%', background:'rgba(248,208,228,0.6)', border:'1.5px solid rgba(248,208,228,0.9)', display:'flex', alignItems:'center', justifyContent:'center', fontSize:'24px', animation:'glowPulse 2s ease-in-out infinite', boxShadow:'0 0 12px rgba(248,208,228,0.5)' }}>
-                  {latest.emoji}
-                </div>
-                <div>
-                  <div style={{ fontFamily:'Gilda Display', fontSize:'18px', color:'#3A1848' }}>{latest.name}</div>
-                  <div style={{ fontFamily:'Outfit', fontSize:'12px', color:'rgba(152,120,184,0.7)', marginTop:'2px' }}>{latest.desc}</div>
-                </div>
-              </GlassCard>
-            </>
-          ) : null;
-        })()}
-      </Screen>
-      <BottomNav active="home" navigate={navigate} />
-    </AppBackground>
-  );
-}
-
-// ─── PROGRAMMES SCREEN ────────────────────────────────────────────────────────
-function ProgrammesScreen({ navigate }) {
-  const [filter, setFilter] = useState('All');
-  const filters = ['All','Active','Recovery','Strength','Prenatal'];
-  const filterMap = { All: () => true, Active: p => p.active, Recovery: p => p.tag === 'Recovery', Strength: p => p.tag === 'Strength' || p.tag === 'Build', Prenatal: p => p.tag === 'Prenatal' };
-  const visible = PROGRAMMES.filter(filterMap[filter] || (() => true));
-
-  return (
-    <AppBackground>
-      <Screen withNav>
-        <div style={{ paddingTop:'56px', marginBottom:'20px' }}>
-          <div style={{ fontFamily:'Gilda Display', fontSize:'32px', color:'#3A1848', marginBottom:'4px' }}>Choose your path.</div>
-          <div style={{ fontFamily:'Outfit', fontSize:'14px', color:'rgba(152,120,184,0.7)' }}>7 specialist programmes. One built for you.</div>
-        </div>
-
-        {/* Filters */}
-        <div style={{ display:'flex', gap:'8px', overflowX:'auto', paddingBottom:'4px', marginBottom:'20px' }}>
-          {filters.map(f => (
-            <button key={f} onClick={() => setFilter(f)}
-              style={{ padding:'8px 16px', borderRadius:'24px', whiteSpace:'nowrap', fontFamily:'Outfit', fontSize:'12px', fontWeight:500, cursor:'pointer', background: filter===f ? '#9878B8' : 'rgba(255,255,255,0.5)', color: filter===f ? '#F2EEFB' : '#3A1848', border: filter===f ? 'none' : '0.5px solid rgba(200,184,232,0.3)', flexShrink:0 }}>
-              {f}
-            </button>
-          ))}
-        </div>
-
-        {/* Programme cards */}
-        <div style={{ display:'flex', flexDirection:'column', gap:'12px', paddingBottom:'20px' }}>
-          {visible.map((p, i) => (
-            <ProgrammeCard key={p.id} prog={p} idx={i} navigate={navigate} />
-          ))}
-        </div>
-      </Screen>
-      <BottomNav active="programmes" navigate={navigate} />
-    </AppBackground>
-  );
-}
-
-function ProgrammeCard({ prog, idx, navigate }) {
-  return (
-    <div className="scaleIn" style={{ animationDelay: `${idx * 0.06}s`,
-      background: prog.colour, borderRadius:'16px', padding:'18px',
-      border: prog.active ? '1.5px solid rgba(255,255,255,0.6)' : 'none',
-      cursor:'pointer', position:'relative', overflow:'hidden' }}
-      onClick={() => navigate('programme_detail', { prog })}>
-      {/* Subtle shimmer */}
-      <div style={{ position:'absolute', top:'-40px', right:'-40px', width:'120px', height:'120px', borderRadius:'50%', background:'rgba(255,255,255,0.12)', pointerEvents:'none' }} />
-
-      <div style={{ display:'flex', justifyContent:'space-between', alignItems:'flex-start', marginBottom:'8px' }}>
-        <div style={{ display:'flex', gap:'6px' }}>
-          <span style={{ padding:'4px 10px', borderRadius:'10px', background:'rgba(255,255,255,0.25)', fontFamily:'Outfit', fontSize:'10px', fontWeight:500, color: prog.text }}>{prog.tag}</span>
-          {prog.active && <span style={{ padding:'4px 10px', borderRadius:'10px', background:'rgba(255,255,255,0.35)', fontFamily:'Outfit', fontSize:'10px', fontWeight:500, color: prog.text }}>Active</span>}
-        </div>
-        <span style={{ fontFamily:'Outfit', fontSize:'11px', color: prog.text === '#F2EEFB' ? 'rgba(242,238,251,0.65)' : 'rgba(58,24,72,0.55)' }}>{prog.weeks > 0 ? `${prog.weeks} wks` : 'Ongoing'}</span>
-      </div>
-
-      <div style={{ fontFamily:'Gilda Display', fontSize:'22px', color: prog.text, lineHeight:1.2, marginBottom:'6px' }}>{prog.name}</div>
-      <div style={{ fontFamily:'Outfit', fontSize:'13px', fontWeight:300, color: prog.text === '#F2EEFB' ? 'rgba(242,238,251,0.8)' : 'rgba(58,24,72,0.65)', marginBottom:'12px', lineHeight:1.5 }}>{prog.tagline}</div>
-
-      <div style={{ display:'flex', justifyContent:'space-between', alignItems:'center' }}>
-        <span style={{ fontFamily:'Outfit', fontSize:'11px', color: prog.text === '#F2EEFB' ? 'rgba(242,238,251,0.6)' : 'rgba(58,24,72,0.5)' }}>{prog.level}</span>
-        <span style={{ fontFamily:'Outfit', fontSize:'12px', fontWeight:500, color: prog.text }}>{prog.active ? 'Continue →' : 'Start programme →'}</span>
-      </div>
-
-      {prog.active && prog.progress > 0 && (
-        <div style={{ marginTop:'12px' }}>
-          <div style={{ display:'flex', justifyContent:'space-between', marginBottom:'5px' }}>
-            <span style={{ fontFamily:'Outfit', fontSize:'10px', color: prog.text === '#F2EEFB' ? 'rgba(242,238,251,0.65)' : 'rgba(58,24,72,0.5)' }}>Progress</span>
-            <span style={{ fontFamily:'Outfit', fontSize:'10px', fontWeight:500, color: prog.text }}>{Math.round(prog.progress*100)}%</span>
-          </div>
-          <div style={{ height:'4px', borderRadius:'2px', background:'rgba(255,255,255,0.3)' }}>
-            <div style={{ height:'100%', width:`${prog.progress*100}%`, background:'rgba(255,255,255,0.75)', borderRadius:'2px' }} />
-          </div>
-        </div>
-      )}
-    </div>
-  );
-}
-
-// ─── PROGRAMME DETAIL ─────────────────────────────────────────────────────────
-function ProgrammeDetailScreen({ navigate, params }) {
-  const prog = params?.prog || PROGRAMMES[0];
-  const phases = ['Restore','Strengthen','Transform'];
-  const weeks = Array.from({length: prog.weeks || 12}, (_,i) => i+1);
-
-  return (
-    <AppBackground>
-      <div style={{ minHeight:'100vh', paddingBottom:'32px', overflowY:'auto' }}>
-        {/* Hero */}
-        <div style={{ background: prog.colour, padding:'56px 20px 24px', position:'relative', overflow:'hidden' }}>
-          <div style={{ position:'absolute', top:'-60px', right:'-60px', width:'200px', height:'200px', borderRadius:'50%', background:'rgba(255,255,255,0.1)' }} />
-          <div style={{ position:'absolute', bottom:'-30px', left:'-30px', width:'120px', height:'120px', borderRadius:'50%', background:'rgba(255,255,255,0.08)' }} />
-          <button onClick={() => navigate('programmes')} style={{ background:'rgba(255,255,255,0.25)', border:'none', borderRadius:'50%', width:'36px', height:'36px', cursor:'pointer', display:'flex', alignItems:'center', justifyContent:'center', marginBottom:'16px' }}>
-            <BackIcon color={prog.text} size={18} />
-          </button>
-          <div style={{ display:'flex', gap:'6px', marginBottom:'12px' }}>
-            <span style={{ padding:'5px 12px', borderRadius:'12px', background:'rgba(255,255,255,0.25)', fontFamily:'Outfit', fontSize:'11px', fontWeight:500, color:prog.text }}>{prog.tag}</span>
-            {prog.id === 'pregnant' && <span style={{ padding:'5px 12px', borderRadius:'12px', background:'rgba(255,200,100,0.4)', fontFamily:'Outfit', fontSize:'11px', fontWeight:500, color:'#5a3000' }}>⚕️ Physician advised</span>}
-          </div>
-          <div style={{ fontFamily:'Gilda Display', fontSize:'30px', color:prog.text, lineHeight:1.2, marginBottom:'8px' }}>{prog.name}</div>
-          <div style={{ fontFamily:'Outfit', fontSize:'14px', fontWeight:300, color: prog.text === '#F2EEFB' ? 'rgba(242,238,251,0.8)' : 'rgba(58,24,72,0.65)', lineHeight:1.6 }}>{prog.tagline}</div>
-        </div>
-
-        <div style={{ padding:'20px' }}>
-          {/* Rosa's intro */}
-          <GlassCard accent style={{ marginBottom:'16px', padding:'18px' }}>
-            <div style={{ display:'flex', gap:'10px', alignItems:'flex-start' }}>
-              <div style={{ width:'36px', height:'36px', borderRadius:'50%', background:'linear-gradient(135deg,#9878B8,#C8B8E8)', display:'flex', alignItems:'center', justifyContent:'center', fontSize:'16px', flexShrink:0 }}>💪</div>
-              <div>
-                <div style={{ fontFamily:'Outfit', fontSize:'10px', fontWeight:500, textTransform:'uppercase', letterSpacing:'0.08em', color:'rgba(152,120,184,0.65)', marginBottom:'6px' }}>Rosa says</div>
-                <p style={{ fontFamily:'Gilda Display', fontSize:'15px', color:'rgba(152,120,184,0.85)', fontStyle:'italic', lineHeight:1.7 }}>
-                  "This programme was built from everything I learned rebuilding my own body. Follow the phases — they're sequenced for a reason. Trust the process."
-                </p>
-              </div>
-            </div>
-          </GlassCard>
-
-          {/* Programme info */}
-          <div style={{ display:'grid', gridTemplateColumns:'1fr 1fr 1fr', gap:'8px', marginBottom:'20px' }}>
-            {[{l:'Duration', v: prog.weeks > 0 ? `${prog.weeks} weeks` : 'Ongoing'},
-              {l:'Level', v:prog.level},{l:'Sessions', v:'3–5/week'}].map(i => (
-              <GlassCard key={i.l} style={{ textAlign:'center', padding:'12px 8px' }}>
-                <div style={{ fontFamily:'Gilda Display', fontSize:'14px', color:'#3A1848' }}>{i.v}</div>
-                <div style={{ fontFamily:'Outfit', fontSize:'9px', textTransform:'uppercase', letterSpacing:'0.07em', color:'rgba(152,120,184,0.6)', marginTop:'3px' }}>{i.l}</div>
-              </GlassCard>
-            ))}
-          </div>
-
-          {/* Phases */}
-          {prog.weeks > 0 && (
-            <>
-              <SectionHeader>Programme phases</SectionHeader>
-              <div style={{ display:'flex', flexDirection:'column', gap:'8px', marginBottom:'20px' }}>
-                {phases.map((ph, i) => (
-                  <GlassCard key={ph} style={{ display:'flex', alignItems:'center', gap:'12px' }}>
-                    <div style={{ width:'28px', height:'28px', borderRadius:'50%', background: i === 0 ? '#9878B8' : 'rgba(255,255,255,0.5)', display:'flex', alignItems:'center', justifyContent:'center', flexShrink:0 }}>
-                      {i === 0 ? <CheckIcon size={14} /> : <span style={{ fontFamily:'Outfit', fontSize:'12px', fontWeight:500, color:'rgba(152,120,184,0.6)' }}>{i+1}</span>}
-                    </div>
-                    <div>
-                      <div style={{ fontFamily:'Outfit', fontSize:'13px', fontWeight:500, color:'#3A1848' }}>Phase {i+1}: {ph}</div>
-                      <div style={{ fontFamily:'Outfit', fontSize:'11px', color:'rgba(152,120,184,0.65)' }}>Weeks {i*4+1}–{(i+1)*4}</div>
-                    </div>
-                    {i === 0 && <span style={{ marginLeft:'auto', fontFamily:'Outfit', fontSize:'10px', color:'#9878B8', fontWeight:500 }}>Current</span>}
-                  </GlassCard>
-                ))}
-              </div>
-            </>
-          )}
-
-          {/* Week grid */}
-          <SectionHeader>Sessions</SectionHeader>
-          <div style={{ display:'grid', gridTemplateColumns:'1fr 1fr', gap:'8px', marginBottom:'20px' }}>
-            {weeks.slice(0, 12).map(w => {
-              const done = w <= (USER.programmeWeek - 1);
-              const current = w === USER.programmeWeek;
-              return (
-                <GlassCard key={w} strong={current} accent={current}
-                  onClick={() => current && navigate('workout')}
-                  style={{ display:'flex', alignItems:'center', gap:'10px', cursor: current ? 'pointer' : 'default', opacity: !done && !current ? 0.55 : 1 }}>
-                  <div style={{ width:'32px', height:'32px', borderRadius:'50%', background: done ? '#C8B8E8' : current ? '#9878B8' : 'rgba(255,255,255,0.5)', display:'flex', alignItems:'center', justifyContent:'center', flexShrink:0 }}>
-                    {done ? <CheckIcon color="#3A1848" size={14} /> : <span style={{ fontFamily:'Outfit', fontSize:'12px', fontWeight:500, color: current ? '#F2EEFB' : 'rgba(152,120,184,0.65)' }}>{w}</span>}
-                  </div>
-                  <div>
-                    <div style={{ fontFamily:'Outfit', fontSize:'12px', fontWeight:500, color:'#3A1848' }}>Week {w}</div>
-                    <div style={{ fontFamily:'Outfit', fontSize:'10px', color:'rgba(152,120,184,0.65)' }}>{done ? 'Complete' : current ? 'In progress' : '3 sessions'}</div>
-                  </div>
-                </GlassCard>
-              );
-            })}
-          </div>
-
-          <PillButton style={{ width:'100%', padding:'14px' }} onClick={() => navigate('workout')}>
-            {prog.active ? 'Continue programme →' : 'Start this programme →'}
-          </PillButton>
-        </div>
-      </div>
-    </AppBackground>
-  );
-}
-
-
-// === screens-workout-nutrition.js ===
-// ─── WORKOUT PLAYER ───────────────────────────────────────────────────────────
-function WorkoutPlayerScreen({ navigate }) {
-  const [exIdx, setExIdx] = useState(0);
-  const [setsDone, setSetsDone] = useState(0);
-  const [resting, setResting] = useState(false);
-  const [timeLeft, setTimeLeft] = useState(0);
-  const [done, setDone] = useState(false);
-  const [weights, setWeights] = useState(EXERCISES.map(e => e.weight));
-  const timerRef = useRef(null);
-
-  const ex = EXERCISES[exIdx];
-  const totalSets = ex.sets;
-  const progress = (exIdx / EXERCISES.length) * 100 + (setsDone / (totalSets * EXERCISES.length)) * 100;
-
-  const startRest = useCallback(() => {
-    if (ex.rest === 0) {
-      advanceSet();
-      return;
-    }
-    setResting(true);
-    setTimeLeft(ex.rest);
-    timerRef.current = setInterval(() => {
-      setTimeLeft(t => {
-        if (t <= 1) {
-          clearInterval(timerRef.current);
-          setResting(false);
-          advanceSet();
-          return 0;
-        }
-        return t - 1;
-      });
-    }, 1000);
-  }, [ex, setsDone, exIdx]);
-
-  const advanceSet = useCallback(() => {
-    setSetsDone(s => {
-      const next = s + 1;
-      if (next >= totalSets) {
-        if (exIdx >= EXERCISES.length - 1) {
-          setDone(true);
-        } else {
-          setExIdx(i => i + 1);
-        }
-        return 0;
-      }
-      return next;
-    });
-  }, [totalSets, exIdx]);
-
-  const skipRest = () => {
-    if (timerRef.current) clearInterval(timerRef.current);
-    setResting(false);
-    advanceSet();
-  };
-
-  useEffect(() => () => { if (timerRef.current) clearInterval(timerRef.current); }, []);
-
-  if (done) {
-    return (
-      <AppBackground>
-        <div style={{ minHeight:'100vh', display:'flex', flexDirection:'column', alignItems:'center', justifyContent:'center', padding:'40px 20px', textAlign:'center' }}>
-          <div style={{ fontSize:'64px', marginBottom:'20px', animation:'badgePop 0.6s ease-out' }}>🎯</div>
-          <div style={{ fontFamily:'Gilda Display', fontSize:'36px', color:'#3A1848', marginBottom:'8px' }}>Session complete!</div>
-          <div style={{ fontFamily:'Outfit', fontSize:'14px', fontWeight:300, color:'rgba(152,120,184,0.7)', marginBottom:'8px' }}>You showed up, {USER.name}. That's everything.</div>
-          <div style={{ fontFamily:'Gilda Display', fontSize:'15px', color:'rgba(152,120,184,0.8)', fontStyle:'italic', marginBottom:'32px' }}>
-            "You're stronger than yesterday."
-          </div>
-          <div style={{ display:'grid', gridTemplateColumns:'1fr 1fr', gap:'10px', width:'100%', marginBottom:'28px' }}>
-            {[{l:'Exercises',v:EXERCISES.length},{l:'Sets',v:EXERCISES.reduce((a,e)=>a+e.sets,0)},{l:'Duration',v:`${TODAY_SESSION.duration}m`},{l:'Week',v:`${USER.programmeWeek}/${12}`}].map(s => (
-              <GlassCard key={s.l} style={{ textAlign:'center' }}>
-                <div style={{ fontFamily:'Gilda Display', fontSize:'28px', color:'#3A1848' }}>{s.v}</div>
-                <div style={{ fontFamily:'Outfit', fontSize:'10px', textTransform:'uppercase', letterSpacing:'0.08em', color:'rgba(152,120,184,0.6)', marginTop:'4px' }}>{s.l}</div>
-              </GlassCard>
-            ))}
-          </div>
-          <PillButton onClick={() => navigate('home')} style={{ width:'100%', padding:'15px' }}>Back to home →</PillButton>
-        </div>
-      </AppBackground>
-    );
-  }
-
-  return (
-    <AppBackground>
-      <div style={{ minHeight:'100vh', display:'flex', flexDirection:'column', padding:'0 20px 32px' }}>
-        {/* Header */}
-        <div style={{ display:'flex', alignItems:'center', gap:'12px', paddingTop:'52px', marginBottom:'16px' }}>
-          <button onClick={() => navigate('home')} style={{ background:'rgba(255,255,255,0.4)', border:'none', borderRadius:'50%', width:'36px', height:'36px', cursor:'pointer', display:'flex', alignItems:'center', justifyContent:'center', backdropFilter:'blur(12px)' }}>
-            <CloseIcon size={16} />
-          </button>
-          <div style={{ flex:1 }}>
-            <div style={{ fontFamily:'Outfit', fontSize:'11px', color:'rgba(152,120,184,0.65)', marginBottom:'4px' }}>{TODAY_SESSION.name} · Week {TODAY_SESSION.week}</div>
-            <div style={{ height:'4px', borderRadius:'2px', background:'rgba(255,255,255,0.4)', overflow:'hidden' }}>
-              <div style={{ height:'100%', width:`${progress}%`, background:'#9878B8', borderRadius:'2px', transition:'width 0.4s ease' }} />
-            </div>
-          </div>
-          <span style={{ fontFamily:'Outfit', fontSize:'12px', color:'rgba(152,120,184,0.65)' }}>{exIdx+1}/{EXERCISES.length}</span>
-        </div>
-
-        {/* Rest timer overlay */}
-        {resting ? (
-          <div className="scaleIn" style={{ flex:1, display:'flex', flexDirection:'column', alignItems:'center', justifyContent:'center', gap:'16px' }}>
-            <div style={{ fontFamily:'Outfit', fontSize:'13px', fontWeight:500, textTransform:'uppercase', letterSpacing:'0.1em', color:'rgba(152,120,184,0.7)' }}>Rest</div>
-            <div style={{ fontFamily:'Gilda Display', fontSize:'80px', color:'#3A1848', lineHeight:1, animation:'timerTick 1s ease-in-out infinite' }}>{timeLeft}</div>
-            <div style={{ fontFamily:'Outfit', fontSize:'14px', color:'rgba(152,120,184,0.6)' }}>seconds</div>
-            <div style={{ fontFamily:'Outfit', fontSize:'12px', fontWeight:300, color:'rgba(152,120,184,0.6)', textAlign:'center', maxWidth:'220px', fontStyle:'italic' }}>"{ex.tip}"</div>
-            <PillButton variant="ghost" onClick={skipRest} style={{ marginTop:'16px' }}>Skip rest</PillButton>
-          </div>
-        ) : (
-          <div style={{ flex:1, display:'flex', flexDirection:'column' }}>
-            {/* Exercise name */}
-            <div style={{ marginBottom:'20px' }}>
-              <div style={{ fontFamily:'Gilda Display', fontSize:'36px', color:'#3A1848', lineHeight:1.2, marginBottom:'6px' }}>{ex.name}</div>
-              <div style={{ fontFamily:'Outfit', fontSize:'13px', color:'rgba(152,120,184,0.7)', fontStyle:'italic' }}>{ex.tip}</div>
-            </div>
-
-            {/* Set progress */}
-            <div style={{ display:'flex', gap:'6px', marginBottom:'20px' }}>
-              {Array.from({length:totalSets}).map((_,i) => (
-                <div key={i} style={{ flex:1, height:'4px', borderRadius:'2px', background: i < setsDone ? '#9878B8' : 'rgba(255,255,255,0.5)' }} />
-              ))}
-            </div>
-            <div style={{ fontFamily:'Outfit', fontSize:'12px', color:'rgba(152,120,184,0.65)', marginBottom:'20px' }}>
-              Set {setsDone + 1} of {totalSets}
-            </div>
-
-            {/* Set / Rep / Weight grid */}
-            <div style={{ display:'grid', gridTemplateColumns:'1fr 1fr 1fr', gap:'10px', marginBottom:'24px' }}>
-              {[{label:'Sets', value:`${setsDone+1}/${totalSets}`, sub:'current'},
-                {label:'Reps', value: ex.reps > 0 ? ex.reps : '—', sub: ex.reps > 0 ? 'target' : 'hold'},
-                {label:'Weight', value: weights[exIdx] > 0 ? weights[exIdx] : 'BW', sub: weights[exIdx] > 0 ? 'kg' : 'bodyweight'}].map(s => (
-                <GlassCard key={s.label} strong style={{ textAlign:'center', padding:'16px 10px' }}>
-                  <div style={{ fontFamily:'Gilda Display', fontSize:'30px', color:'#3A1848', lineHeight:1 }}>{s.value}</div>
-                  <div style={{ fontFamily:'Outfit', fontSize:'9px', textTransform:'uppercase', letterSpacing:'0.07em', color:'rgba(152,120,184,0.55)', marginTop:'4px' }}>{s.sub}</div>
-                  <div style={{ fontFamily:'Outfit', fontSize:'11px', fontWeight:500, color:'rgba(152,120,184,0.7)', marginTop:'2px' }}>{s.label}</div>
-                </GlassCard>
-              ))}
-            </div>
-
-            {/* Weight adjust */}
-            {ex.weight > 0 && (
-              <GlassCard style={{ display:'flex', alignItems:'center', justifyContent:'space-between', marginBottom:'20px', padding:'12px 16px' }}>
-                <span style={{ fontFamily:'Outfit', fontSize:'12px', color:'rgba(152,120,184,0.7)' }}>Adjust weight</span>
-                <div style={{ display:'flex', alignItems:'center', gap:'14px' }}>
-                  <button onClick={() => setWeights(w => { const n=[...w]; n[exIdx]=Math.max(0,n[exIdx]-2.5); return n; })} style={{ width:'32px', height:'32px', borderRadius:'50%', background:'rgba(255,255,255,0.5)', border:'0.5px solid rgba(200,184,232,0.4)', fontFamily:'Outfit', fontSize:'18px', cursor:'pointer', color:'#9878B8' }}>−</button>
-                  <span style={{ fontFamily:'Gilda Display', fontSize:'20px', color:'#3A1848', minWidth:'40px', textAlign:'center' }}>{weights[exIdx]}kg</span>
-                  <button onClick={() => setWeights(w => { const n=[...w]; n[exIdx]=n[exIdx]+2.5; return n; })} style={{ width:'32px', height:'32px', borderRadius:'50%', background:'rgba(255,255,255,0.5)', border:'0.5px solid rgba(200,184,232,0.4)', fontFamily:'Outfit', fontSize:'18px', cursor:'pointer', color:'#9878B8' }}>+</button>
-                </div>
-              </GlassCard>
-            )}
-
-            {/* Next exercise preview */}
-            {exIdx < EXERCISES.length - 1 && (
-              <GlassCard style={{ marginBottom:'20px', display:'flex', alignItems:'center', gap:'10px', padding:'10px 14px' }}>
-                <div style={{ fontFamily:'Outfit', fontSize:'10px', fontWeight:500, textTransform:'uppercase', letterSpacing:'0.08em', color:'rgba(152,120,184,0.55)', flexShrink:0 }}>Up next</div>
-                <div style={{ flex:1, fontFamily:'Outfit', fontSize:'13px', color:'#3A1848' }}>{EXERCISES[exIdx+1].name}</div>
-                <div style={{ fontFamily:'Outfit', fontSize:'11px', color:'rgba(152,120,184,0.6)' }}>{EXERCISES[exIdx+1].sets}×{EXERCISES[exIdx+1].reps}</div>
-              </GlassCard>
-            )}
-
-            <div style={{ marginTop:'auto' }}>
-              <PillButton onClick={startRest} style={{ width:'100%', padding:'16px', fontSize:'14px' }}>
-                {ex.rest > 0 ? `Complete set → Rest ${ex.rest}s` : 'Complete set →'}
-              </PillButton>
-            </div>
-          </div>
-        )}
-      </div>
-    </AppBackground>
-  );
-}
-
-// ─── NUTRITION SCREEN ─────────────────────────────────────────────────────────
-function NutritionScreen({ navigate }) {
-  const [tab, setTab] = useState('today');
-  const [dietFilter, setDietFilter] = useState('All');
-  const [selectedMeal, setSelectedMeal] = useState(null);
-  const [loggedMeals, setLoggedMeals] = useState([10]);
-  const [searchQ, setSearchQ] = useState('');
-
-  const dietOpts = ['All','Vegan','Vegetarian','Pescetarian','Omnivore'];
-  const filtered = KITCHEN_MEALS.filter(m => {
-    const dMatch = dietFilter === 'All' || m.diet.includes(dietFilter.toLowerCase());
-    const sMatch = !searchQ || m.name.toLowerCase().includes(searchQ.toLowerCase());
-    return dMatch && sMatch;
-  });
-
-  if (selectedMeal) {
-    return <MealDetail meal={selectedMeal} onBack={() => setSelectedMeal(null)} onLog={() => { setLoggedMeals(l => [...l, selectedMeal.id]); setSelectedMeal(null); }} logged={loggedMeals.includes(selectedMeal.id)} />;
-  }
-
-  return (
-    <AppBackground>
-      <Screen withNav>
-        <div style={{ paddingTop:'56px', marginBottom:'20px' }}>
-          <div style={{ fontFamily:'Gilda Display', fontSize:'32px', color:'#3A1848' }}>Today's nutrition.</div>
-        </div>
-
-        {/* Macro summary */}
-        <GlassCard strong accent style={{ marginBottom:'16px' }}>
-          <div style={{ display:'flex', justifyContent:'space-between', alignItems:'center', marginBottom:'12px' }}>
-            <div>
-              <span style={{ fontFamily:'Gilda Display', fontSize:'36px', color:'#3A1848' }}>{USER.macros.kcal}</span>
-              <span style={{ fontFamily:'Outfit', fontSize:'13px', color:'rgba(152,120,184,0.6)', marginLeft:'4px' }}>/ {USER.macros.kcalTarget} kcal</span>
-            </div>
-            <div style={{ textAlign:'right' }}>
-              <div style={{ fontFamily:'Outfit', fontSize:'10px', color:'rgba(152,120,184,0.65)' }}>Remaining</div>
-              <div style={{ fontFamily:'Gilda Display', fontSize:'20px', color:'#9878B8' }}>{USER.macros.kcalTarget - USER.macros.kcal}</div>
-            </div>
-          </div>
-          <div style={{ height:'8px', borderRadius:'4px', background:'rgba(255,255,255,0.5)', marginBottom:'16px', overflow:'hidden' }}>
-            <div style={{ height:'100%', width:`${(USER.macros.kcal/USER.macros.kcalTarget)*100}%`, background:'linear-gradient(90deg,#C8B8E8,#F8D0E4)', borderRadius:'4px', transition:'width 0.8s ease' }} />
-          </div>
-          <MacroBar label="Protein" value={USER.macros.protein} target={USER.macros.proteinTarget} colour="#C8B8E8" />
-          <MacroBar label="Carbohydrates" value={USER.macros.carbs} target={USER.macros.carbsTarget} colour="#DDD5F5" />
-          <MacroBar label="Fat" value={USER.macros.fat} target={USER.macros.fatTarget} colour="#F8D0E4" />
-        </GlassCard>
-
-        {/* Tab row */}
-        <div style={{ display:'flex', borderRadius:'24px', background:'rgba(255,255,255,0.4)', padding:'3px', marginBottom:'16px' }}>
-          {[{id:'today',label:"Today's log"},{id:'kitchen',label:'ROSA Kitchen'}].map(t => (
-            <button key={t.id} onClick={() => setTab(t.id)}
-              style={{ flex:1, padding:'9px', borderRadius:'20px', fontFamily:'Outfit', fontSize:'12px', fontWeight:500, cursor:'pointer', background: tab===t.id ? '#9878B8' : 'transparent', color: tab===t.id ? '#F2EEFB' : 'rgba(152,120,184,0.7)', border:'none', transition:'all 0.2s' }}>
-              {t.label}
-            </button>
-          ))}
-        </div>
-
-        {tab === 'today' ? (
-          <TodayLog navigate={navigate} />
-        ) : (
-          <KitchenTab dietFilter={dietFilter} setDietFilter={setDietFilter} dietOpts={dietOpts} filtered={filtered} searchQ={searchQ} setSearchQ={setSearchQ} setSelectedMeal={setSelectedMeal} loggedMeals={loggedMeals} />
-        )}
-      </Screen>
-      <BottomNav active="nutrition" navigate={navigate} />
-    </AppBackground>
-  );
-}
-
-function TodayLog({ navigate }) {
-  const [showAdd, setShowAdd] = useState(false);
-  return (
-    <div>
-      <div style={{ display:'flex', justifyContent:'space-between', alignItems:'center', marginBottom:'12px' }}>
-        <SectionHeader>Food log</SectionHeader>
-        <button onClick={() => setShowAdd(!showAdd)} style={{ display:'flex', alignItems:'center', gap:'4px', background:'rgba(152,120,184,0.15)', border:'none', borderRadius:'20px', padding:'6px 12px', cursor:'pointer' }}>
-          <PlusIcon size={14} />
-          <span style={{ fontFamily:'Outfit', fontSize:'11px', fontWeight:500, color:'#9878B8' }}>Add food</span>
-        </button>
-      </div>
-
-      {showAdd && (
-        <GlassCard style={{ marginBottom:'12px' }}>
-          <input placeholder="Search food or scan barcode…" style={{ width:'100%', padding:'10px 14px', borderRadius:'12px', border:'0.5px solid rgba(200,184,232,0.4)', background:'rgba(253,238,224,0.4)', fontFamily:'Outfit', fontSize:'13px', color:'#3A1848' }} />
-          <div style={{ fontFamily:'Outfit', fontSize:'11px', color:'rgba(152,120,184,0.55)', marginTop:'8px', textAlign:'center' }}>Barcode scanner available in the full app</div>
-        </GlassCard>
-      )}
-
-      <div style={{ display:'flex', flexDirection:'column', gap:'8px', marginBottom:'16px' }}>
-        {MEALS_TODAY.map(m => (
-          <GlassCard key={m.id} style={{ display:'flex', alignItems:'center', gap:'12px' }}>
-            <div style={{ width:'40px', height:'40px', borderRadius:'12px', background:'rgba(253,238,224,0.6)', display:'flex', alignItems:'center', justifyContent:'center', fontSize:'20px', flexShrink:0 }}>{m.emoji}</div>
-            <div style={{ flex:1 }}>
-              <div style={{ fontFamily:'Outfit', fontSize:'13px', fontWeight:500, color:'#3A1848' }}>{m.name}</div>
-              <div style={{ fontFamily:'Outfit', fontSize:'11px', color:'rgba(152,120,184,0.65)', marginTop:'2px' }}>{m.time} · {m.diet[0]}</div>
-            </div>
-            <div style={{ textAlign:'right' }}>
-              <div style={{ fontFamily:'Gilda Display', fontSize:'16px', color:'#3A1848' }}>{m.kcal}</div>
-              <div style={{ fontFamily:'Outfit', fontSize:'9px', color:'rgba(152,120,184,0.55)' }}>kcal</div>
-              <div style={{ fontFamily:'Outfit', fontSize:'10px', color:'rgba(152,120,184,0.65)', marginTop:'2px' }}>{m.protein}g prot</div>
-            </div>
-          </GlassCard>
-        ))}
-      </div>
-
-      <GlassCard style={{ textAlign:'center', padding:'20px' }}>
-        <div style={{ fontFamily:'Gilda Display', fontSize:'15px', color:'rgba(152,120,184,0.7)', fontStyle:'italic' }}>"Nourish your body like the athlete you are."</div>
-        <div style={{ fontFamily:'Outfit', fontSize:'11px', color:'rgba(152,120,184,0.45)', marginTop:'6px' }}>— Rosa</div>
-      </GlassCard>
-    </div>
-  );
-}
-
-function KitchenTab({ dietFilter, setDietFilter, dietOpts, filtered, searchQ, setSearchQ, setSelectedMeal, loggedMeals }) {
-  const categories = [...new Set(filtered.map(m => m.category))];
-  return (
-    <div>
-      <input value={searchQ} onChange={e => setSearchQ(e.target.value)} placeholder="Search ROSA Kitchen…"
-        style={{ width:'100%', padding:'12px 16px', borderRadius:'24px', border:'0.5px solid rgba(200,184,232,0.4)', background:'rgba(255,255,255,0.5)', fontFamily:'Outfit', fontSize:'13px', color:'#3A1848', marginBottom:'12px' }} />
-      <div style={{ display:'flex', gap:'6px', overflowX:'auto', paddingBottom:'4px', marginBottom:'16px' }}>
-        {dietOpts.map(d => (
-          <button key={d} onClick={() => setDietFilter(d)}
-            style={{ padding:'7px 14px', borderRadius:'24px', whiteSpace:'nowrap', fontFamily:'Outfit', fontSize:'11px', fontWeight:500, cursor:'pointer', background: dietFilter===d ? '#9878B8' : 'rgba(255,255,255,0.5)', color: dietFilter===d ? '#F2EEFB' : '#3A1848', border: dietFilter===d ? 'none' : '0.5px solid rgba(200,184,232,0.3)', flexShrink:0 }}>
-            {d}
-          </button>
-        ))}
-      </div>
-      {categories.map(cat => (
-        <div key={cat} style={{ marginBottom:'16px' }}>
-          <SectionHeader>{cat}</SectionHeader>
-          <div style={{ display:'grid', gridTemplateColumns:'1fr 1fr', gap:'8px' }}>
-            {filtered.filter(m => m.category === cat).map(m => (
-              <GlassCard key={m.id} onClick={() => setSelectedMeal(m)} style={{ cursor:'pointer', padding:'12px' }}>
-                <div style={{ fontSize:'28px', marginBottom:'8px' }}>{m.emoji}</div>
-                <div style={{ fontFamily:'Outfit', fontSize:'12px', fontWeight:500, color:'#3A1848', lineHeight:1.3, marginBottom:'6px' }}>{m.name}</div>
-                <div style={{ display:'flex', justifyContent:'space-between', alignItems:'center' }}>
-                  <span style={{ fontFamily:'Gilda Display', fontSize:'14px', color:'#3A1848' }}>{m.kcal}<span style={{ fontFamily:'Outfit', fontSize:'9px', color:'rgba(152,120,184,0.6)' }}> kcal</span></span>
-                  <span style={{ fontFamily:'Outfit', fontSize:'10px', color:'rgba(152,120,184,0.65)' }}>{m.prepMins}m</span>
-                </div>
-                <div style={{ fontFamily:'Outfit', fontSize:'10px', color:'#9878B8', fontWeight:500, marginTop:'4px' }}>{m.protein}g protein</div>
-                {loggedMeals.includes(m.id) && (
-                  <div style={{ marginTop:'6px', padding:'3px 8px', borderRadius:'8px', background:'rgba(200,184,232,0.25)', fontFamily:'Outfit', fontSize:'9px', color:'#9878B8', fontWeight:500, textAlign:'center' }}>✓ Logged</div>
-                )}
-              </GlassCard>
-            ))}
-          </div>
-        </div>
-      ))}
-    </div>
-  );
-}
-
-function MealDetail({ meal, onBack, onLog, logged }) {
-  const [portions, setPortions] = useState(1);
-  const scale = portions;
-  return (
-    <AppBackground>
-      <div style={{ minHeight:'100vh', overflowY:'auto', paddingBottom:'32px' }}>
-        <div style={{ background:'rgba(253,238,224,0.7)', padding:'56px 20px 24px', backdropFilter:'blur(16px)' }}>
-          <button onClick={onBack} style={{ background:'rgba(255,255,255,0.5)', border:'none', borderRadius:'50%', width:'36px', height:'36px', cursor:'pointer', display:'flex', alignItems:'center', justifyContent:'center', marginBottom:'16px' }}>
-            <BackIcon size={18} />
-          </button>
-          <div style={{ fontSize:'48px', marginBottom:'12px' }}>{meal.emoji}</div>
-          <div style={{ fontFamily:'Gilda Display', fontSize:'26px', color:'#3A1848', marginBottom:'4px' }}>{meal.name}</div>
-          <div style={{ fontFamily:'Outfit', fontSize:'13px', color:'rgba(152,120,184,0.7)' }}>{meal.category} · {meal.prepMins} min prep</div>
-        </div>
-        <div style={{ padding:'20px' }}>
-          {/* Macros */}
-          <div style={{ display:'grid', gridTemplateColumns:'repeat(4,1fr)', gap:'8px', marginBottom:'16px' }}>
-            {[{l:'Calories',v:Math.round(meal.kcal*scale),u:'kcal'},{l:'Protein',v:Math.round(meal.protein*scale),u:'g'},{l:'Carbs',v:Math.round(meal.carbs*scale),u:'g'},{l:'Fat',v:Math.round(meal.fat*scale),u:'g'}].map(m => (
-              <GlassCard key={m.l} style={{ textAlign:'center', padding:'10px 6px' }}>
-                <div style={{ fontFamily:'Gilda Display', fontSize:'18px', color:'#3A1848' }}>{m.v}</div>
-                <div style={{ fontFamily:'Outfit', fontSize:'9px', color:'rgba(152,120,184,0.55)' }}>{m.u}</div>
-                <div style={{ fontFamily:'Outfit', fontSize:'9px', textTransform:'uppercase', letterSpacing:'0.06em', color:'rgba(152,120,184,0.5)', marginTop:'2px' }}>{m.l}</div>
-              </GlassCard>
-            ))}
-          </div>
-
-          {/* Portions */}
-          <GlassCard style={{ display:'flex', alignItems:'center', justifyContent:'space-between', marginBottom:'16px', padding:'12px 16px' }}>
-            <span style={{ fontFamily:'Outfit', fontSize:'13px', color:'#3A1848' }}>Portions</span>
-            <div style={{ display:'flex', alignItems:'center', gap:'16px' }}>
-              <button onClick={() => setPortions(p => Math.max(0.5,p-0.5))} style={{ width:'32px', height:'32px', borderRadius:'50%', background:'rgba(255,255,255,0.5)', border:'0.5px solid rgba(200,184,232,0.4)', fontFamily:'Outfit', fontSize:'18px', cursor:'pointer', color:'#9878B8' }}>−</button>
-              <span style={{ fontFamily:'Gilda Display', fontSize:'22px', color:'#3A1848', minWidth:'32px', textAlign:'center' }}>{portions}</span>
-              <button onClick={() => setPortions(p => p+0.5)} style={{ width:'32px', height:'32px', borderRadius:'50%', background:'rgba(255,255,255,0.5)', border:'0.5px solid rgba(200,184,232,0.4)', fontFamily:'Outfit', fontSize:'18px', cursor:'pointer', color:'#9878B8' }}>+</button>
-            </div>
-          </GlassCard>
-
-          {/* Ingredients */}
-          <SectionHeader>Ingredients</SectionHeader>
-          <GlassCard style={{ marginBottom:'16px' }}>
-            {meal.ingredients.map((ing, i) => (
-              <div key={i} style={{ display:'flex', alignItems:'center', gap:'10px', padding:'8px 0', borderBottom: i < meal.ingredients.length-1 ? '0.5px solid rgba(200,184,232,0.2)' : 'none' }}>
-                <div style={{ width:'6px', height:'6px', borderRadius:'50%', background:'#C8B8E8', flexShrink:0 }} />
-                <span style={{ fontFamily:'Outfit', fontSize:'13px', color:'rgba(58,24,72,0.75)' }}>{ing}</span>
-              </div>
-            ))}
-          </GlassCard>
-
-          {/* Method */}
-          <SectionHeader>Method</SectionHeader>
-          <GlassCard style={{ marginBottom:'20px' }}>
-            <p style={{ fontFamily:'Outfit', fontSize:'13px', fontWeight:300, color:'rgba(58,24,72,0.75)', lineHeight:1.7 }}>{meal.method}</p>
-          </GlassCard>
-
-          <PillButton onClick={onLog} disabled={logged} style={{ width:'100%', padding:'14px' }} variant={logged ? 'secondary' : 'primary'}>
-            {logged ? '✓ Logged to today' : 'Log this meal'}
-          </PillButton>
-        </div>
-      </div>
-    </AppBackground>
-  );
-}
-
-
-// === screens-progress-profile.js ===
-// ─── PROGRESS SCREEN ──────────────────────────────────────────────────────────
-function ProgressScreen({ navigate }) {
-  const maxSessions = Math.max(...WEEKLY_DATA.map(d => d.sessions));
-  const totalSessions = WEEKLY_DATA.reduce((a, d) => a + d.sessions, 0);
-  const avgSessions = (totalSessions / WEEKLY_DATA.length).toFixed(1);
-
-  return (
-    <AppBackground>
-      <Screen withNav>
-        <div style={{ paddingTop:'56px', marginBottom:'20px' }}>
-          <div style={{ fontFamily:'Gilda Display', fontSize:'32px', color:'#3A1848', marginBottom:'4px' }}>Your progress.</div>
-          <div style={{ fontFamily:'Outfit', fontSize:'14px', color:'rgba(152,120,184,0.7)' }}>Every session counts. Here's the proof.</div>
-        </div>
-
-        {/* Stats row */}
-        <div style={{ display:'grid', gridTemplateColumns:'repeat(3,1fr)', gap:'8px', marginBottom:'20px' }}>
-          {[{l:'Total sessions', v:totalSessions},{l:'Avg / week', v:avgSessions},{l:'Best week', v:maxSessions}].map(s => (
-            <GlassCard key={s.l} strong style={{ textAlign:'center', padding:'14px 8px' }}>
-              <div style={{ fontFamily:'Gilda Display', fontSize:'28px', color:'#3A1848' }}>{s.v}</div>
-              <div style={{ fontFamily:'Outfit', fontSize:'9px', textTransform:'uppercase', letterSpacing:'0.07em', color:'rgba(152,120,184,0.6)', marginTop:'4px', lineHeight:1.3 }}>{s.l}</div>
-            </GlassCard>
-          ))}
-        </div>
-
-        {/* Bar chart */}
-        <SectionHeader>Weekly sessions</SectionHeader>
-        <GlassCard style={{ marginBottom:'16px', padding:'16px' }}>
-          <MiniBarChart data={WEEKLY_DATA} />
-        </GlassCard>
-
-        {/* Programme progress */}
-        <SectionHeader>Active programme</SectionHeader>
-        <GlassCard amethyst style={{ marginBottom:'16px' }}>
-          <div style={{ display:'flex', justifyContent:'space-between', alignItems:'flex-start', marginBottom:'12px' }}>
-            <div>
-              <div style={{ fontFamily:'Gilda Display', fontSize:'20px', color:'#F2EEFB', marginBottom:'4px' }}>{USER.programme}</div>
-              <div style={{ fontFamily:'Outfit', fontSize:'12px', color:'rgba(242,238,251,0.7)' }}>Week {USER.programmeWeek} of 12</div>
-            </div>
-            <div style={{ textAlign:'right' }}>
-              <div style={{ fontFamily:'Gilda Display', fontSize:'28px', color:'#F2EEFB' }}>{Math.round(USER.programmeProgress * 100)}%</div>
-              <div style={{ fontFamily:'Outfit', fontSize:'10px', color:'rgba(242,238,251,0.6)' }}>complete</div>
-            </div>
-          </div>
-          <div style={{ height:'6px', borderRadius:'3px', background:'rgba(255,255,255,0.2)', overflow:'hidden' }}>
-            <div style={{ height:'100%', width:`${USER.programmeProgress * 100}%`, background:'rgba(255,255,255,0.75)', borderRadius:'3px', transition:'width 1s ease' }} />
-          </div>
-          <div style={{ display:'flex', justifyContent:'space-between', marginTop:'8px' }}>
-            <span style={{ fontFamily:'Outfit', fontSize:'10px', color:'rgba(242,238,251,0.55)' }}>Phase 1: Restore ✓</span>
-            <span style={{ fontFamily:'Outfit', fontSize:'10px', color:'rgba(242,238,251,0.55)' }}>Phase 2: Strengthen →</span>
-          </div>
-        </GlassCard>
-
-        {/* Progress ring */}
-        <SectionHeader>This week</SectionHeader>
-        <GlassCard style={{ display:'flex', alignItems:'center', gap:'16px', marginBottom:'16px' }}>
-          <ProgressRing completed={USER.sessionsThisWeek} total={USER.sessionsTarget} size={88} />
-          <div>
-            <div style={{ fontFamily:'Gilda Display', fontSize:'22px', color:'#3A1848', marginBottom:'4px' }}>
-              {USER.sessionsThisWeek === USER.sessionsTarget ? 'Week complete!' : `${USER.sessionsTarget - USER.sessionsThisWeek} session${USER.sessionsTarget - USER.sessionsThisWeek !== 1 ? 's' : ''} to go`}
-            </div>
-            <div style={{ fontFamily:'Outfit', fontSize:'13px', color:'rgba(152,120,184,0.7)', lineHeight:1.5 }}>
-              {USER.sessionsThisWeek} of {USER.sessionsTarget} sessions done this week
-            </div>
-            {USER.sessionsThisWeek > 0 && (
-              <div style={{ fontFamily:'Outfit', fontSize:'12px', color:'rgba(152,120,184,0.55)', fontStyle:'italic', marginTop:'6px' }}>
-                "You're stronger than yesterday."
-              </div>
-            )}
-          </div>
-        </GlassCard>
-
-        {/* Achievements preview */}
-        <SectionHeader>Achievements</SectionHeader>
-        <GlassCard style={{ marginBottom:'16px' }}>
-          <div style={{ display:'grid', gridTemplateColumns:'repeat(4,1fr)', gap:'10px', marginBottom:'12px' }}>
-            {BADGES.slice(0, 8).map(b => (
-              <BadgeItem key={b.id} badge={b} earned={USER.earnedBadges.includes(b.id)} />
-            ))}
-          </div>
-          <div style={{ borderTop:'0.5px solid rgba(200,184,232,0.2)', paddingTop:'10px', textAlign:'center' }}>
-            <span style={{ fontFamily:'Outfit', fontSize:'12px', color:'rgba(152,120,184,0.7)' }}>
-              {USER.earnedBadges.length} of {BADGES.length} badges earned
-            </span>
-          </div>
-        </GlassCard>
-
-        {/* Streak milestones */}
-        <SectionHeader>Streak milestones</SectionHeader>
-        <div style={{ display:'flex', flexDirection:'column', gap:'8px', marginBottom:'20px' }}>
-          {[{days:7,msg:"One week straight. Rosa would be proud.",done:USER.streak>=7},
-            {days:30,msg:"A month of showing up. You're building something real.",done:USER.streak>=30},
-            {days:90,msg:"90 days. You didn't just break the mould — you proved it was always a lie.",done:USER.streak>=90}].map(m => (
-            <GlassCard key={m.days} style={{ display:'flex', alignItems:'center', gap:'12px', opacity: m.done ? 1 : 0.55 }}>
-              <div style={{ width:'36px', height:'36px', borderRadius:'50%', background: m.done ? '#9878B8' : 'rgba(255,255,255,0.5)', display:'flex', alignItems:'center', justifyContent:'center', fontFamily:'Outfit', fontSize:'11px', fontWeight:500, color: m.done ? '#F2EEFB' : 'rgba(152,120,184,0.6)', flexShrink:0 }}>{m.days}d</div>
-              <div style={{ flex:1 }}>
-                <div style={{ fontFamily:'Outfit', fontSize:'12px', fontWeight: m.done ? 500 : 400, color:'#3A1848', marginBottom:'2px' }}>{m.days}-day streak {m.done ? '✓' : ''}</div>
-                <div style={{ fontFamily:'Outfit', fontSize:'11px', fontWeight:300, color:'rgba(152,120,184,0.65)', fontStyle:'italic', lineHeight:1.4 }}>"{m.msg}"</div>
-              </div>
-            </GlassCard>
-          ))}
-        </div>
-      </Screen>
-      <BottomNav active="progress" navigate={navigate} />
-    </AppBackground>
-  );
-}
-
-// ─── PROFILE SCREEN ───────────────────────────────────────────────────────────
-function ProfileScreen({ navigate }) {
-  const initials = USER.name.slice(0, 2).toUpperCase();
-  const [settingsOpen, setSettingsOpen] = useState(false);
-
-  return (
-    <AppBackground>
-      <Screen withNav>
-        <div style={{ paddingTop:'56px', marginBottom:'20px' }}>
-          {/* Avatar + name */}
-          <div style={{ display:'flex', alignItems:'center', gap:'16px', marginBottom:'20px' }}>
-            <div style={{ width:'68px', height:'68px', borderRadius:'50%', background:'linear-gradient(135deg,#9878B8,#C8B8E8)', display:'flex', alignItems:'center', justifyContent:'center', fontFamily:'Gilda Display', fontSize:'26px', color:'#F2EEFB', flexShrink:0, boxShadow:'0 4px 16px rgba(152,120,184,0.35)' }}>
-              {initials}
-            </div>
-            <div>
-              <div style={{ fontFamily:'Gilda Display', fontSize:'28px', color:'#3A1848', lineHeight:1.1 }}>{USER.name}</div>
-              <div style={{ fontFamily:'Outfit', fontSize:'13px', color:'rgba(152,120,184,0.7)', marginTop:'3px' }}>Active: {USER.programme}</div>
-              <div style={{ fontFamily:'Outfit', fontSize:'12px', color:'rgba(152,120,184,0.55)', marginTop:'2px' }}>Week {USER.programmeWeek}</div>
-            </div>
-          </div>
-
-          {/* Streak banner */}
-          <StreakBanner streak={USER.streak} style={{ marginBottom:'16px' }} />
-
-          {/* Stats grid */}
-          <SectionHeader>Your stats</SectionHeader>
-          <div style={{ display:'grid', gridTemplateColumns:'1fr 1fr', gap:'10px', marginBottom:'20px' }}>
-            {[{label:'Day streak',    value:USER.streak,                   emoji:'🔥'},
-              {label:'Sessions',      value:WEEKLY_DATA.reduce((a,d)=>a+d.sessions,0), emoji:'💪'},
-              {label:'Badges',        value:USER.earnedBadges.length,      emoji:'🏆'},
-              {label:'Programme',     value:`${Math.round(USER.programmeProgress*100)}%`, emoji:'⚡'}].map(s => (
-              <GlassCard key={s.label} strong style={{ display:'flex', alignItems:'center', gap:'12px' }}>
-                <div style={{ fontSize:'24px' }}>{s.emoji}</div>
-                <div>
-                  <div style={{ fontFamily:'Gilda Display', fontSize:'26px', color:'#3A1848', lineHeight:1 }}>{s.value}</div>
-                  <div style={{ fontFamily:'Outfit', fontSize:'10px', textTransform:'uppercase', letterSpacing:'0.07em', color:'rgba(152,120,184,0.6)', marginTop:'3px' }}>{s.label}</div>
-                </div>
-              </GlassCard>
-            ))}
-          </div>
-
-          {/* Badges grid */}
-          <SectionHeader>All achievements</SectionHeader>
-          <GlassCard style={{ marginBottom:'16px', padding:'16px' }}>
-            <div style={{ display:'grid', gridTemplateColumns:'repeat(4,1fr)', gap:'12px' }}>
-              {BADGES.map(b => (
-                <BadgeItem key={b.id} badge={b} earned={USER.earnedBadges.includes(b.id)} />
-              ))}
-            </div>
-            <div style={{ marginTop:'14px', paddingTop:'12px', borderTop:'0.5px solid rgba(200,184,232,0.2)' }}>
-              <div style={{ fontFamily:'Outfit', fontSize:'12px', color:'rgba(152,120,184,0.65)', textAlign:'center' }}>
-                {USER.earnedBadges.length} earned · {BADGES.length - USER.earnedBadges.length} remaining
-              </div>
-            </div>
-          </GlassCard>
-
-          {/* Recent history */}
-          <SectionHeader>Workout history</SectionHeader>
-          <div style={{ display:'flex', flexDirection:'column', gap:'8px', marginBottom:'20px' }}>
-            {[{date:'Today',    name:'Lower Body Sculpt', duration:'45m', week:'W3D2'},
-              {date:'Yesterday',name:'Core & Recovery',   duration:'30m', week:'W3D1'},
-              {date:'Mon',      name:'Upper Body Strength',duration:'45m', week:'W2D4'},
-              {date:'Sat',      name:'Full Body HIIT',    duration:'30m', week:'W2D3'},
-            ].map((s,i) => (
-              <GlassCard key={i} style={{ display:'flex', alignItems:'center', gap:'12px' }}>
-                <div style={{ width:'36px', height:'36px', borderRadius:'12px', background:'rgba(200,184,232,0.25)', display:'flex', alignItems:'center', justifyContent:'center', flexShrink:0 }}>
-                  <span style={{ fontFamily:'Outfit', fontSize:'9px', fontWeight:500, color:'#9878B8', textAlign:'center', lineHeight:1.2 }}>{s.week}</span>
-                </div>
-                <div style={{ flex:1 }}>
-                  <div style={{ fontFamily:'Outfit', fontSize:'13px', fontWeight:500, color:'#3A1848' }}>{s.name}</div>
-                  <div style={{ fontFamily:'Outfit', fontSize:'11px', color:'rgba(152,120,184,0.65)', marginTop:'1px' }}>{s.date}</div>
-                </div>
-                <span style={{ fontFamily:'Outfit', fontSize:'12px', color:'rgba(152,120,184,0.65)' }}>{s.duration}</span>
-              </GlassCard>
-            ))}
-          </div>
-
-          {/* Settings */}
-          <SectionHeader>Account</SectionHeader>
-          <GlassCard style={{ marginBottom:'20px' }}>
-            {[{label:'Edit profile',      icon:'✏️'},
-              {label:'Notification settings', icon:'🔔'},
-              {label:'Units (Metric)',    icon:'📏'},
-              {label:'Privacy policy',   icon:'🔒'},
-              {label:'About ROSA',       icon:'💜'},
-            ].map((item, i, arr) => (
-              <div key={item.label} style={{ display:'flex', alignItems:'center', gap:'12px', padding:'12px 0', borderBottom: i < arr.length-1 ? '0.5px solid rgba(200,184,232,0.2)' : 'none', cursor:'pointer' }}>
-                <span style={{ fontSize:'16px', width:'24px', textAlign:'center' }}>{item.icon}</span>
-                <span style={{ fontFamily:'Outfit', fontSize:'13px', color:'#3A1848', flex:1 }}>{item.label}</span>
-                <span style={{ fontFamily:'Outfit', fontSize:'16px', color:'rgba(152,120,184,0.35)' }}>›</span>
-              </div>
-            ))}
-          </GlassCard>
-
-          {/* Rosa quote */}
-          <GlassCard accent style={{ textAlign:'center', padding:'20px', marginBottom:'20px' }}>
-            <div style={{ fontFamily:'Gilda Display', fontSize:'16px', color:'rgba(152,120,184,0.85)', fontStyle:'italic', lineHeight:1.6 }}>
-              "We are not just mums. We are the teachers of the future generation."
-            </div>
-            <div style={{ fontFamily:'Outfit', fontSize:'11px', color:'rgba(152,120,184,0.45)', marginTop:'8px' }}>— Rosa</div>
-          </GlassCard>
-        </div>
-      </Screen>
-      <BottomNav active="profile" navigate={navigate} />
-    </AppBackground>
-  );
-}
-
-
-// === app.js ===
-// ─── ROOT APP ─────────────────────────────────────────────────────────────────
-function App() {
-  const [screen, setScreen] = useState('splash');
-  const [params, setParams] = useState({});
-
-  const navigate = (dest, p = {}) => {
-    setParams(p);
-    setScreen(dest);
-    window.scrollTo(0, 0);
-  };
-
-  switch (screen) {
-    case 'splash':
-      return <SplashScreen navigate={navigate} />;
-    case 'onboarding':
-      return <OnboardingScreen navigate={navigate} />;
-    case 'home':
-      return <HomeScreen navigate={navigate} />;
-    case 'programmes':
-      return <ProgrammesScreen navigate={navigate} />;
-    case 'programme_detail':
-      return <ProgrammeDetailScreen navigate={navigate} params={params} />;
-    case 'workout':
-      return <WorkoutPlayerScreen navigate={navigate} />;
-    case 'nutrition':
-      return <NutritionScreen navigate={navigate} />;
-    case 'progress':
-      return <ProgressScreen navigate={navigate} />;
-    case 'profile':
-      return <ProfileScreen navigate={navigate} />;
-    default:
-      return <SplashScreen navigate={navigate} />;
-  }
-}
-
-const root = ReactDOM.createRoot(document.getElementById('root'));
-root.render(<App />);
-
-
-</script>
-<script type="text/babel">
 
 // === data.js ===
 // ─── MOCK DATA ───────────────────────────────────────────────────────────────
@@ -2416,6 +675,406 @@ function Screen({ children, pad=true, scrollable=true, withNav=false }) {
 }
 
 
+// === screens-auth.js ===
+// ─── AUTH SCREENS ─────────────────────────────────────────────────────────────
+// Covers: Terms gate → Login (email / Google / Meta / Apple) → Verify / Signup
+
+// ── Terms & Conditions Gate ───────────────────────────────────────────────────
+function TermsScreen({ onAccept }) {
+  const [scrolled, setScrolled] = useState(false);
+  const [gdpr, setGdpr] = useState(false);
+  const [marketing, setMarketing] = useState(false);
+  const scrollRef = useRef(null);
+
+  const handleScroll = (e) => {
+    const el = e.target;
+    if (el.scrollTop + el.clientHeight >= el.scrollHeight - 40) setScrolled(true);
+  };
+
+  const canAccept = scrolled && gdpr;
+
+  return (
+    <AppBackground>
+      <div style={{ minHeight:'100vh', display:'flex', flexDirection:'column', padding:'0 20px 32px' }}>
+        <div style={{ paddingTop:'56px', marginBottom:'20px' }}>
+          <div style={{ fontFamily:'Gilda Display', fontSize:'28px', color:'#3A1848', marginBottom:'4px' }}>Before you begin.</div>
+          <div style={{ fontFamily:'Outfit', fontSize:'14px', color:'rgba(152,120,184,0.7)' }}>Please read and accept our terms to continue.</div>
+        </div>
+
+        {/* Scrollable terms */}
+        <GlassCard strong style={{ flex:1, overflow:'hidden', marginBottom:'16px', padding:0, display:'flex', flexDirection:'column' }}>
+          <div ref={scrollRef} onScroll={handleScroll}
+            style={{ overflowY:'auto', padding:'16px', flex:1, maxHeight:'42vh' }}>
+            <TermsContent />
+            <PrivacyContent />
+            <MedicalDisclaimer />
+            <DataRights />
+          </div>
+          {!scrolled && (
+            <div style={{ padding:'10px 16px', background:'rgba(200,184,232,0.15)', borderTop:'0.5px solid rgba(200,184,232,0.3)', textAlign:'center' }}>
+              <span style={{ fontFamily:'Outfit', fontSize:'11px', color:'rgba(152,120,184,0.7)' }}>↓ Scroll to read all terms before accepting</span>
+            </div>
+          )}
+        </GlassCard>
+
+        {/* Consent checkboxes */}
+        <div style={{ display:'flex', flexDirection:'column', gap:'10px', marginBottom:'20px' }}>
+          <ConsentRow checked={gdpr} onChange={setGdpr}
+            label="I have read and agree to the Terms of Service, Privacy Policy, and Medical Disclaimer. I understand ROSA is a fitness app and not a medical service." required />
+          <ConsentRow checked={marketing} onChange={setMarketing}
+            label="I'd like to receive updates, programme launches and tips from Rosa. (Optional — you can change this anytime.)" required={false} />
+        </div>
+
+        <PillButton onClick={() => canAccept && onAccept({ gdpr, marketing })} disabled={!canAccept}
+          style={{ width:'100%', padding:'16px', fontSize:'14px', opacity: canAccept ? 1 : 0.45 }}>
+          Accept & continue
+        </PillButton>
+        <div style={{ fontFamily:'Outfit', fontSize:'11px', color:'rgba(152,120,184,0.5)', textAlign:'center', marginTop:'10px', lineHeight:1.5 }}>
+          By continuing you confirm you are 18 or over. Your data is stored securely and never sold. GDPR compliant.
+        </div>
+      </div>
+    </AppBackground>
+  );
+}
+
+function ConsentRow({ checked, onChange, label, required }) {
+  return (
+    <GlassCard style={{ display:'flex', gap:'12px', alignItems:'flex-start', padding:'12px 14px', cursor:'pointer' }}
+      onClick={() => onChange(!checked)}>
+      <div style={{ width:'22px', height:'22px', borderRadius:'6px', border: checked ? 'none' : '1.5px solid rgba(152,120,184,0.4)', background: checked ? '#9878B8' : 'rgba(255,255,255,0.5)', display:'flex', alignItems:'center', justifyContent:'center', flexShrink:0, marginTop:'1px' }}>
+        {checked && <CheckIcon size={13} />}
+      </div>
+      <div style={{ flex:1 }}>
+        <span style={{ fontFamily:'Outfit', fontSize:'12px', color:'rgba(58,24,72,0.8)', lineHeight:1.55 }}>{label}</span>
+        {required && <span style={{ fontFamily:'Outfit', fontSize:'10px', color:'rgba(152,120,184,0.6)', marginLeft:'4px' }}>*Required</span>}
+      </div>
+    </GlassCard>
+  );
+}
+
+// ── Login / Signup Screen ─────────────────────────────────────────────────────
+function AuthScreen({ navigate, consentData }) {
+  const [mode, setMode] = useState('login'); // 'login' | 'signup' | 'forgot'
+  const [email, setEmail] = useState('');
+  const [password, setPassword] = useState('');
+  const [name, setName] = useState('');
+  const [loading, setLoading] = useState(null);
+  const [error, setError] = useState('');
+  const [showPassword, setShowPassword] = useState(false);
+
+  const handleEmail = async () => {
+    if (!email || (mode !== 'forgot' && !password)) { setError('Please fill in all fields.'); return; }
+    setLoading('email');
+    setError('');
+    try {
+      if (mode === 'signup') {
+        const { data, error: err } = await supabase.auth.signUp({ email, password, options: { data: { full_name: name, marketing_consent: consentData?.marketing, gdpr_consent: true, gdpr_date: new Date().toISOString() } } });
+        if (err) throw err;
+        setMode('verify');
+      } else if (mode === 'login') {
+        const { data, error: err } = await supabase.auth.signInWithPassword({ email, password });
+        if (err) throw err;
+        navigate('home');
+      } else {
+        const { error: err } = await supabase.auth.resetPasswordForEmail(email);
+        if (err) throw err;
+        setMode('forgot_sent');
+      }
+    } catch (e) {
+      setError(e.message || 'Something went wrong. Please try again.');
+    }
+    setLoading(null);
+  };
+
+  const handleOAuth = async (provider) => {
+    setLoading(provider);
+    setError('');
+    try {
+      const { error: err } = await supabase.auth.signInWithOAuth({ provider, options: { redirectTo: window.location.origin } });
+      if (err) throw err;
+    } catch (e) {
+      setError(e.message || 'OAuth sign-in failed.');
+    }
+    setLoading(null);
+  };
+
+  // Verify email sent state
+  if (mode === 'verify') {
+    return (
+      <AppBackground>
+        <div style={{ minHeight:'100vh', display:'flex', flexDirection:'column', alignItems:'center', justifyContent:'center', padding:'40px 28px', textAlign:'center' }}>
+          <div style={{ fontSize:'56px', marginBottom:'20px' }}>📬</div>
+          <div style={{ fontFamily:'Gilda Display', fontSize:'28px', color:'#3A1848', marginBottom:'8px' }}>Check your inbox.</div>
+          <div style={{ fontFamily:'Outfit', fontSize:'14px', fontWeight:300, color:'rgba(152,120,184,0.7)', lineHeight:1.7, marginBottom:'32px' }}>
+            We've sent a verification link to <strong style={{ color:'#3A1848' }}>{email}</strong>. Click it to activate your account, then come back here.
+          </div>
+          <PillButton onClick={() => navigate('home')} style={{ width:'100%', maxWidth:'280px', padding:'14px' }}>
+            I've verified — continue →
+          </PillButton>
+          <button onClick={() => setMode('login')} style={{ fontFamily:'Outfit', fontSize:'12px', color:'rgba(152,120,184,0.6)', background:'none', border:'none', cursor:'pointer', marginTop:'16px' }}>
+            Back to login
+          </button>
+        </div>
+      </AppBackground>
+    );
+  }
+
+  if (mode === 'forgot_sent') {
+    return (
+      <AppBackground>
+        <div style={{ minHeight:'100vh', display:'flex', flexDirection:'column', alignItems:'center', justifyContent:'center', padding:'40px 28px', textAlign:'center' }}>
+          <div style={{ fontSize:'56px', marginBottom:'20px' }}>🔑</div>
+          <div style={{ fontFamily:'Gilda Display', fontSize:'28px', color:'#3A1848', marginBottom:'8px' }}>Reset link sent.</div>
+          <div style={{ fontFamily:'Outfit', fontSize:'14px', fontWeight:300, color:'rgba(152,120,184,0.7)', lineHeight:1.7, marginBottom:'32px' }}>
+            Check your email for a password reset link.
+          </div>
+          <PillButton onClick={() => setMode('login')} style={{ width:'100%', maxWidth:'280px', padding:'14px' }}>
+            Back to login
+          </PillButton>
+        </div>
+      </AppBackground>
+    );
+  }
+
+  return (
+    <AppBackground>
+      <div style={{ minHeight:'100vh', display:'flex', flexDirection:'column', padding:'0 24px 32px' }}>
+        {/* Header */}
+        <div style={{ paddingTop:'64px', textAlign:'center', marginBottom:'32px' }}>
+          <div style={{ fontFamily:'Gilda Display', fontSize:'48px', color:'#3A1848', letterSpacing:'0.06em', marginBottom:'8px' }}>ROSA</div>
+          <div style={{ fontFamily:'Gilda Display', fontSize:'16px', color:'rgba(152,120,184,0.8)', fontStyle:'italic' }}>
+            {mode === 'signup' ? 'Create your account.' : mode === 'forgot' ? 'Reset your password.' : 'Welcome back.'}
+          </div>
+        </div>
+
+        {/* OAuth buttons */}
+        {mode !== 'forgot' && (
+          <div style={{ display:'flex', flexDirection:'column', gap:'10px', marginBottom:'20px' }}>
+            <OAuthButton provider="google" label="Continue with Google" loading={loading==='google'} onClick={() => handleOAuth('google')} />
+            <OAuthButton provider="apple"  label="Continue with Apple"  loading={loading==='apple'}  onClick={() => handleOAuth('apple')} />
+            <OAuthButton provider="facebook" label="Continue with Meta" loading={loading==='facebook'} onClick={() => handleOAuth('facebook')} />
+          </div>
+        )}
+
+        {/* Divider */}
+        {mode !== 'forgot' && (
+          <div style={{ display:'flex', alignItems:'center', gap:'12px', marginBottom:'20px' }}>
+            <div style={{ flex:1, height:'0.5px', background:'rgba(200,184,232,0.4)' }} />
+            <span style={{ fontFamily:'Outfit', fontSize:'11px', color:'rgba(152,120,184,0.55)' }}>or with email</span>
+            <div style={{ flex:1, height:'0.5px', background:'rgba(200,184,232,0.4)' }} />
+          </div>
+        )}
+
+        {/* Email form */}
+        <div style={{ display:'flex', flexDirection:'column', gap:'10px', marginBottom:'16px' }}>
+          {mode === 'signup' && (
+            <AuthInput placeholder="Full name" value={name} onChange={setName} type="text" icon="👤" />
+          )}
+          <AuthInput placeholder="Email address" value={email} onChange={setEmail} type="email" icon="✉️" />
+          {mode !== 'forgot' && (
+            <AuthInput placeholder="Password" value={password} onChange={setPassword}
+              type={showPassword ? 'text' : 'password'} icon="🔒"
+              rightAction={{ label: showPassword ? 'Hide' : 'Show', onClick: () => setShowPassword(!showPassword) }} />
+          )}
+        </div>
+
+        {error && (
+          <div style={{ padding:'10px 14px', borderRadius:'10px', background:'rgba(248,100,100,0.12)', border:'0.5px solid rgba(248,100,100,0.3)', fontFamily:'Outfit', fontSize:'12px', color:'#c0392b', marginBottom:'12px' }}>
+            {error}
+          </div>
+        )}
+
+        {mode === 'login' && (
+          <button onClick={() => { setMode('forgot'); setError(''); }}
+            style={{ fontFamily:'Outfit', fontSize:'12px', color:'rgba(152,120,184,0.7)', background:'none', border:'none', cursor:'pointer', textAlign:'right', marginBottom:'12px' }}>
+            Forgot password?
+          </button>
+        )}
+
+        <PillButton onClick={handleEmail} style={{ width:'100%', padding:'15px', fontSize:'14px', marginBottom:'16px' }}>
+          {loading === 'email' ? 'Please wait…' : mode === 'signup' ? 'Create account' : mode === 'forgot' ? 'Send reset link' : 'Sign in'}
+        </PillButton>
+
+        {/* Toggle login/signup */}
+        {mode !== 'forgot' ? (
+          <div style={{ textAlign:'center' }}>
+            <span style={{ fontFamily:'Outfit', fontSize:'13px', color:'rgba(152,120,184,0.7)' }}>
+              {mode === 'login' ? "Don't have an account? " : 'Already have an account? '}
+            </span>
+            <button onClick={() => { setMode(mode === 'login' ? 'signup' : 'login'); setError(''); }}
+              style={{ fontFamily:'Outfit', fontSize:'13px', fontWeight:500, color:'#9878B8', background:'none', border:'none', cursor:'pointer' }}>
+              {mode === 'login' ? 'Sign up' : 'Sign in'}
+            </button>
+          </div>
+        ) : (
+          <button onClick={() => { setMode('login'); setError(''); }}
+            style={{ fontFamily:'Outfit', fontSize:'13px', color:'rgba(152,120,184,0.7)', background:'none', border:'none', cursor:'pointer', textAlign:'center', width:'100%' }}>
+            ← Back to sign in
+          </button>
+        )}
+
+        {/* Legal note */}
+        <div style={{ marginTop:'auto', paddingTop:'24px', textAlign:'center' }}>
+          <span style={{ fontFamily:'Outfit', fontSize:'10px', color:'rgba(152,120,184,0.45)', lineHeight:1.6 }}>
+            Protected by reCAPTCHA. GDPR compliant. Your data is never sold.{'\n'}
+            <span style={{ textDecoration:'underline', cursor:'pointer' }}>Privacy Policy</span> · <span style={{ textDecoration:'underline', cursor:'pointer' }}>Terms of Service</span>
+          </span>
+        </div>
+      </div>
+    </AppBackground>
+  );
+}
+
+// ── OAuth Button ──────────────────────────────────────────────────────────────
+function OAuthButton({ provider, label, onClick, loading }) {
+  const icons = {
+    google:   <svg width="18" height="18" viewBox="0 0 24 24"><path d="M22.56 12.25c0-.78-.07-1.53-.2-2.25H12v4.26h5.92c-.26 1.37-1.04 2.53-2.21 3.31v2.77h3.57c2.08-1.92 3.28-4.74 3.28-8.09z" fill="#4285F4"/><path d="M12 23c2.97 0 5.46-.98 7.28-2.66l-3.57-2.77c-.98.66-2.23 1.06-3.71 1.06-2.86 0-5.29-1.93-6.16-4.53H2.18v2.84C3.99 20.53 7.7 23 12 23z" fill="#34A853"/><path d="M5.84 14.09c-.22-.66-.35-1.36-.35-2.09s.13-1.43.35-2.09V7.07H2.18C1.43 8.55 1 10.22 1 12s.43 3.45 1.18 4.93l3.66-2.84z" fill="#FBBC05"/><path d="M12 5.38c1.62 0 3.06.56 4.21 1.64l3.15-3.15C17.45 2.09 14.97 1 12 1 7.7 1 3.99 3.47 2.18 7.07l3.66 2.84c.87-2.6 3.3-4.53 6.16-4.53z" fill="#EA4335"/></svg>,
+    apple:    <svg width="18" height="18" viewBox="0 0 24 24" fill="#000"><path d="M18.71 19.5c-.83 1.24-1.71 2.45-3.05 2.47-1.34.03-1.77-.79-3.29-.79-1.53 0-2 .77-3.27.82-1.31.05-2.3-1.32-3.14-2.53C4.25 17 2.94 12.45 4.7 9.39c.87-1.52 2.43-2.48 4.12-2.51 1.28-.02 2.5.87 3.29.87.78 0 2.26-1.07 3.8-.91.65.03 2.47.26 3.64 1.98l-.09.06c-.22.14-2.18 1.27-2.16 3.8.03 3.02 2.65 4.03 2.68 4.04l-.07.28zM13 3.5c.73-.83 1.94-1.46 2.94-1.5.13 1.17-.34 2.35-1.04 3.19-.69.85-1.83 1.51-2.95 1.42-.15-1.15.41-2.35 1.05-3.11z"/></svg>,
+    facebook: <svg width="18" height="18" viewBox="0 0 24 24" fill="#1877F2"><path d="M24 12.073c0-6.627-5.373-12-12-12s-12 5.373-12 12c0 5.99 4.388 10.954 10.125 11.854v-8.385H7.078v-3.47h3.047V9.43c0-3.007 1.792-4.669 4.533-4.669 1.312 0 2.686.235 2.686.235v2.953H15.83c-1.491 0-1.956.925-1.956 1.874v2.25h3.328l-.532 3.47h-2.796v8.385C19.612 23.027 24 18.062 24 12.073z"/></svg>,
+  };
+  return (
+    <GlassCard strong onClick={onClick} style={{ display:'flex', alignItems:'center', justifyContent:'center', gap:'12px', padding:'13px', cursor:'pointer' }}>
+      {loading ? <div style={{ width:'18px', height:'18px', borderRadius:'50%', border:'2px solid #C8B8E8', borderTopColor:'#9878B8', animation:'spin 0.8s linear infinite' }} /> : icons[provider]}
+      <span style={{ fontFamily:'Outfit', fontSize:'13px', fontWeight:500, color:'#3A1848' }}>{label}</span>
+    </GlassCard>
+  );
+}
+
+// ── Auth Input ────────────────────────────────────────────────────────────────
+function AuthInput({ placeholder, value, onChange, type='text', icon, rightAction }) {
+  return (
+    <div style={{ position:'relative' }}>
+      <div style={{ position:'absolute', left:'14px', top:'50%', transform:'translateY(-50%)', fontSize:'16px', pointerEvents:'none' }}>{icon}</div>
+      <input
+        type={type}
+        placeholder={placeholder}
+        value={value}
+        onChange={e => onChange(e.target.value)}
+        style={{ width:'100%', padding:'14px 14px 14px 42px', borderRadius:'14px', border:'0.5px solid rgba(200,184,232,0.5)', background:'rgba(255,255,255,0.55)', backdropFilter:'blur(8px)', fontFamily:'Outfit', fontSize:'14px', color:'#3A1848', paddingRight: rightAction ? '56px' : '14px' }}
+      />
+      {rightAction && (
+        <button onClick={rightAction.onClick} style={{ position:'absolute', right:'14px', top:'50%', transform:'translateY(-50%)', fontFamily:'Outfit', fontSize:'11px', fontWeight:500, color:'#9878B8', background:'none', border:'none', cursor:'pointer' }}>{rightAction.label}</button>
+      )}
+    </div>
+  );
+}
+
+// ─── TERMS & LEGAL CONTENT ────────────────────────────────────────────────────
+function LegalSection({ title, children }) {
+  return (
+    <div style={{ marginBottom:'16px' }}>
+      <div style={{ fontFamily:'Outfit', fontSize:'11px', fontWeight:500, textTransform:'uppercase', letterSpacing:'0.08em', color:'#9878B8', marginBottom:'6px' }}>{title}</div>
+      <div style={{ fontFamily:'Outfit', fontSize:'12px', fontWeight:300, color:'rgba(58,24,72,0.75)', lineHeight:1.75 }}>{children}</div>
+    </div>
+  );
+}
+
+function TermsContent() {
+  return (
+    <>
+      <div style={{ fontFamily:'Gilda Display', fontSize:'18px', color:'#3A1848', marginBottom:'12px' }}>Terms of Service</div>
+      <LegalSection title="1. Acceptance">
+        By creating a ROSA account you agree to these Terms of Service and our Privacy Policy. If you do not agree, do not use the app. These terms are governed by the laws of England and Wales.
+      </LegalSection>
+      <LegalSection title="2. Eligibility">
+        You must be 18 or older to use ROSA. By registering, you confirm you meet this requirement.
+      </LegalSection>
+      <LegalSection title="3. Your Account">
+        You are responsible for maintaining the confidentiality of your login credentials. You must notify us immediately of any unauthorised use. We may suspend accounts that violate these terms.
+      </LegalSection>
+      <LegalSection title="4. Subscription & Billing">
+        ROSA offers free and premium tiers. Premium subscriptions renew automatically. You may cancel at any time via your account settings. Refunds are governed by applicable consumer law (UK Consumer Rights Act 2015 / EU Directive 2011/83/EU).
+      </LegalSection>
+      <LegalSection title="5. Intellectual Property">
+        All content — programmes, nutrition data, branding, copy, and imagery — is the intellectual property of ROSA and its licensors. You may not reproduce, distribute or create derivative works without written permission.
+      </LegalSection>
+      <LegalSection title="6. Prohibited Use">
+        You agree not to: reverse-engineer the app; scrape or automate data collection; share your account; use the service for commercial purposes without authorisation; upload harmful, illegal or infringing content.
+      </LegalSection>
+      <LegalSection title="7. Limitation of Liability">
+        ROSA is a fitness information platform, not a medical service. To the maximum extent permitted by law, ROSA is not liable for indirect, incidental or consequential damages arising from use of the app.
+      </LegalSection>
+      <LegalSection title="8. Changes to Terms">
+        We may update these terms. We'll notify you of material changes by email or in-app notification. Continued use after notice constitutes acceptance.
+      </LegalSection>
+    </>
+  );
+}
+
+function PrivacyContent() {
+  return (
+    <>
+      <div style={{ fontFamily:'Gilda Display', fontSize:'18px', color:'#3A1848', marginBottom:'12px', marginTop:'8px' }}>Privacy Policy</div>
+      <LegalSection title="Data Controller">
+        ROSA App Ltd is the data controller for personal data collected via this application (GDPR Article 4(7) / UK GDPR).
+      </LegalSection>
+      <LegalSection title="What We Collect">
+        • Account data: name, email address, password (hashed){'\n'}
+        • Profile data: age range, life stage, fitness goals, body measurements (user-provided){'\n'}
+        • Usage data: sessions completed, nutrition logs, streaks, badges{'\n'}
+        • Device data: device type, OS, IP address (for security purposes){'\n'}
+        • Optional: marketing preferences
+      </LegalSection>
+      <LegalSection title="Legal Basis (GDPR Article 6)">
+        We process your data under: (a) contractual necessity — to provide the app service; (b) legitimate interests — app security and fraud prevention; (c) consent — marketing communications (withdrawable at any time).
+      </LegalSection>
+      <LegalSection title="How We Use Your Data">
+        • Providing and personalising your programme{'\n'}
+        • Calculating macro targets and nutrition recommendations{'\n'}
+        • Sending service communications (account, safety){'\n'}
+        • Marketing emails (consent-based only){'\n'}
+        • Analytics to improve the app (anonymised/aggregated)
+      </LegalSection>
+      <LegalSection title="Data Sharing">
+        We do not sell your personal data. We share data only with: (a) Supabase (infrastructure — EU data processing agreement in place); (b) payment processors for subscription billing; (c) analytics providers under data processing agreements. All processors are GDPR-compliant.
+      </LegalSection>
+      <LegalSection title="Data Retention">
+        We retain account data for the duration of your account and up to 3 years after deletion (for legal compliance). Anonymised analytics data may be retained indefinitely.
+      </LegalSection>
+      <LegalSection title="International Transfers">
+        Your data is stored in EU/EEA data centres. Any transfers outside the EEA are protected by Standard Contractual Clauses (SCCs) per GDPR Article 46.
+      </LegalSection>
+      <LegalSection title="Cookies">
+        We use essential cookies only. Analytics cookies require your separate consent via our cookie banner.
+      </LegalSection>
+    </>
+  );
+}
+
+function DataRights() {
+  return (
+    <>
+      <div style={{ fontFamily:'Gilda Display', fontSize:'18px', color:'#3A1848', marginBottom:'12px', marginTop:'8px' }}>Your Rights</div>
+      <LegalSection title="GDPR & UK GDPR Rights">
+        You have the right to: (a) Access your personal data; (b) Rectify inaccurate data; (c) Erase your data ("right to be forgotten"); (d) Restrict processing; (e) Data portability; (f) Object to processing; (g) Withdraw consent at any time.{'\n\n'}
+        To exercise any right, contact: <strong>privacy@rosa-app.com</strong>{'\n'}
+        We respond within 30 days (GDPR Article 12). You have the right to lodge a complaint with the ICO (UK) or your national supervisory authority (EU).
+      </LegalSection>
+      <LegalSection title="California (CCPA)">
+        California residents have additional rights including the right to know, delete, and opt-out of the sale of personal information. We do not sell personal information. Contact: privacy@rosa-app.com
+      </LegalSection>
+    </>
+  );
+}
+
+function MedicalDisclaimer() {
+  return (
+    <>
+      <div style={{ fontFamily:'Gilda Display', fontSize:'18px', color:'#3A1848', marginBottom:'12px', marginTop:'8px' }}>Medical Disclaimer</div>
+      <GlassCard style={{ background:'rgba(255,200,100,0.15)', border:'0.5px solid rgba(255,180,50,0.4)', marginBottom:'12px' }}>
+        <div style={{ fontFamily:'Outfit', fontSize:'12px', fontWeight:300, color:'rgba(58,24,72,0.8)', lineHeight:1.75 }}>
+          ⚕️ <strong>Important:</strong> ROSA is a fitness and wellness app. It is not a medical service and does not provide medical advice, diagnosis or treatment. Content is for informational purposes only.{'\n\n'}
+          • Consult your GP or healthcare provider before starting any new fitness programme, particularly if you are pregnant, postpartum, or have a medical condition.{'\n'}
+          • The prenatal programme (Stay Fit Whilst Pregnant) requires physician sign-off. By selecting it, you confirm you have obtained medical clearance.{'\n'}
+          • Pelvic floor and postnatal content is designed by fitness professionals, not physiotherapists. If you experience pain, stop and consult a qualified pelvic health physiotherapist.{'\n'}
+          • ROSA is not liable for any injury arising from use of its programmes.
+        </div>
+      </GlassCard>
+    </>
+  );
+}
+
+
 // === screens-splash-onboarding.js ===
 // ─── SPLASH SCREEN ────────────────────────────────────────────────────────────
 function SplashScreen({ navigate }) {
@@ -2440,10 +1099,10 @@ function SplashScreen({ navigate }) {
         </div>
 
         <div className="fadeUp" style={{ animationDelay:'0.5s', display:'flex', flexDirection:'column', alignItems:'center', gap:'12px', width:'100%' }}>
-          <PillButton onClick={() => navigate('onboarding')} style={{ width:'100%', maxWidth:'280px', padding:'16px 28px', fontSize:'14px' }}>
+          <PillButton onClick={() => navigate('terms')} style={{ width:'100%', maxWidth:'280px', padding:'16px 28px', fontSize:'14px' }}>
             Begin your journey
           </PillButton>
-          <button onClick={() => navigate('home')} style={{ fontFamily:'Outfit', fontSize:'12px', color:'rgba(152,120,184,0.6)', background:'none', border:'none', cursor:'pointer' }}>
+          <button onClick={() => navigate('auth')} style={{ fontFamily:'Outfit', fontSize:'12px', color:'rgba(152,120,184,0.6)', background:'none', border:'none', cursor:'pointer' }}>
             I already have an account
           </button>
         </div>
@@ -3815,6 +2474,22 @@ function ProfileScreen({ navigate }) {
 function App() {
   const [screen, setScreen] = useState('splash');
   const [params, setParams] = useState({});
+  const [consentData, setConsentData] = useState(null);
+  const [authChecked, setAuthChecked] = useState(false);
+
+  // Check existing Supabase session on load
+  useEffect(() => {
+    supabase.auth.getSession().then(({ data: { session } }) => {
+      if (session) setScreen('home');
+      setAuthChecked(true);
+    });
+
+    const { data: { subscription } } = supabase.auth.onAuthStateChange((_event, session) => {
+      if (session && screen === 'auth') setScreen('home');
+    });
+
+    return () => subscription.unsubscribe();
+  }, []);
 
   const navigate = (dest, p = {}) => {
     setParams(p);
@@ -3822,9 +2497,28 @@ function App() {
     window.scrollTo(0, 0);
   };
 
+  const handleTermsAccept = (consent) => {
+    setConsentData(consent);
+    navigate('auth');
+  };
+
+  if (!authChecked) {
+    return (
+      <AppBackground>
+        <div style={{ minHeight:'100vh', display:'flex', alignItems:'center', justifyContent:'center' }}>
+          <div style={{ fontFamily:'Gilda Display', fontSize:'48px', color:'#3A1848', letterSpacing:'0.06em', animation:'pulse 1.5s ease-in-out infinite' }}>ROSA</div>
+        </div>
+      </AppBackground>
+    );
+  }
+
   switch (screen) {
     case 'splash':
       return <SplashScreen navigate={navigate} />;
+    case 'terms':
+      return <TermsScreen onAccept={handleTermsAccept} />;
+    case 'auth':
+      return <AuthScreen navigate={navigate} consentData={consentData} />;
     case 'onboarding':
       return <OnboardingScreen navigate={navigate} />;
     case 'home':

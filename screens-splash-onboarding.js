@@ -21,10 +21,10 @@ function SplashScreen({ navigate }) {
         </div>
 
         <div className="fadeUp" style={{ animationDelay:'0.5s', display:'flex', flexDirection:'column', alignItems:'center', gap:'12px', width:'100%' }}>
-          <PillButton onClick={() => navigate('onboarding')} style={{ width:'100%', maxWidth:'280px', padding:'16px 28px', fontSize:'14px' }}>
+          <PillButton onClick={() => navigate('terms')} style={{ width:'100%', maxWidth:'280px', padding:'16px 28px', fontSize:'14px' }}>
             Begin your journey
           </PillButton>
-          <button onClick={() => navigate('home')} style={{ fontFamily:'Outfit', fontSize:'12px', color:'rgba(152,120,184,0.6)', background:'none', border:'none', cursor:'pointer' }}>
+          <button onClick={() => navigate('auth')} style={{ fontFamily:'Outfit', fontSize:'12px', color:'rgba(152,120,184,0.6)', background:'none', border:'none', cursor:'pointer' }}>
             I already have an account
           </button>
         </div>
