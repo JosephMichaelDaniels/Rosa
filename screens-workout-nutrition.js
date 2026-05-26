@@ -170,12 +170,92 @@ function WorkoutPlayerScreen({ navigate }) {
 }
 
 // ─── NUTRITION SCREEN ─────────────────────────────────────────────────────────
+const QUICK_FOODS = [
+  { label:'☕ Coffee',     text:'a latte' },
+  { label:'🥚 2 Eggs',    text:'2 eggs' },
+  { label:'🍞 Toast',     text:'a slice of brown bread' },
+  { label:'🍌 Banana',    text:'a banana' },
+  { label:'🥛 Protein',   text:'a protein shake' },
+  { label:'🍎 Apple',     text:'an apple' },
+  { label:'🥣 Oats',      text:'a bowl of oats' },
+  { label:'🐟 Salmon',    text:'a salmon fillet' },
+];
+
+const MEAL_SLOTS = [
+  { id:'breakfast', label:'Breakfast',       hours:[6,10] },
+  { id:'lunch',     label:'Lunch',           hours:[11,14] },
+  { id:'dinner',    label:'Dinner',          hours:[17,21] },
+  { id:'snack',     label:'Snacks & Other',  hours:[] },
+];
+
+function getMealSlot() {
+  const h = new Date().getHours();
+  if (h >= 6  && h < 11) return 'breakfast';
+  if (h >= 11 && h < 15) return 'lunch';
+  if (h >= 17 && h < 22) return 'dinner';
+  return 'snack';
+}
+
 function NutritionScreen({ navigate }) {
-  const [tab, setTab] = useState('today');
+  const [tab, setTab] = useState('log');
   const [dietFilter, setDietFilter] = useState('All');
   const [selectedMeal, setSelectedMeal] = useState(null);
-  const [loggedMeals, setLoggedMeals] = useState([10]);
+  const [kitchenLogged, setKitchenLogged] = useState([]);
   const [searchQ, setSearchQ] = useState('');
+  // AI logger state
+  const [aiInput, setAiInput] = useState('');
+  const [aiState, setAiState] = useState('idle'); // idle | thinking | review
+  const [parsedItems, setParsedItems] = useState([]);
+  const [loggedItems, setLoggedItems] = useState(() =>
+    MEALS_TODAY.map(m => ({ ...m, _id: m.id, slot: m.time < '11:00' ? 'breakfast' : m.time < '15:00' ? 'lunch' : 'snack', time: m.time }))
+  );
+
+  const totals = loggedItems.reduce((a,m) => ({ kcal:a.kcal+m.kcal, protein:a.protein+m.protein, carbs:a.carbs+m.carbs, fat:a.fat+m.fat }), { kcal:0, protein:0, carbs:0, fat:0 });
+  const targets = { kcal:USER.macros.kcalTarget, protein:USER.macros.proteinTarget, carbs:USER.macros.carbsTarget, fat:USER.macros.fatTarget };
+
+  const submitAI = (inputText) => {
+    const t = (inputText || aiInput).trim();
+    if (!t) return;
+    setAiState('thinking');
+    setTimeout(() => {
+      const items = parseFood(t);
+      if (items.length === 0) {
+        setParsedItems([{ id: Date.now(), name: t, kcal:150, protein:8, carbs:15, fat:6, emoji:'🍽️', estimated:true, displayQty:1 }]);
+      } else {
+        setParsedItems(items);
+      }
+      setAiState('review');
+    }, 700);
+  };
+
+  const confirmLog = () => {
+    const now = new Date();
+    const timeStr = `${String(now.getHours()).padStart(2,'0')}:${String(now.getMinutes()).padStart(2,'0')}`;
+    const slot = getMealSlot();
+    const newItems = parsedItems.map(item => ({ ...item, _id: Date.now()+Math.random(), slot, time: timeStr }));
+    setLoggedItems(prev => [...prev, ...newItems]);
+    setParsedItems([]);
+    setAiInput('');
+    setAiState('idle');
+    // Save to Supabase
+    supabase.auth.getSession().then(({ data: { session } }) => {
+      if (session) {
+        newItems.forEach(item => {
+          supabase.from('rosa_nutrition_logs').insert({ user_id: session.user.id, meal_name: item.name, kcal: item.kcal, protein: item.protein, carbs: item.carbs, fat: item.fat, portions: item.displayQty || 1 });
+        });
+      }
+    });
+  };
+
+  const removeLogged = (id) => setLoggedItems(prev => prev.filter(m => m._id !== id));
+  const updateParsedQty = (id, delta) => {
+    setParsedItems(prev => prev.map(item => {
+      if (item.id !== id) return item;
+      const newQty = Math.max(0.5, (item.displayQty || 1) + delta);
+      const ratio = newQty / (item.displayQty || 1);
+      return { ...item, displayQty:newQty, kcal:Math.round(item.kcal*ratio), protein:Math.round(item.protein*ratio*10)/10, carbs:Math.round(item.carbs*ratio*10)/10, fat:Math.round(item.fat*ratio*10)/10 };
+    }));
+  };
 
   const dietOpts = ['All','Vegan','Vegetarian','Pescetarian','Omnivore'];
   const filtered = KITCHEN_MEALS.filter(m => {
@@ -185,39 +265,61 @@ function NutritionScreen({ navigate }) {
   });
 
   if (selectedMeal) {
-    return <MealDetail meal={selectedMeal} onBack={() => setSelectedMeal(null)} onLog={() => { setLoggedMeals(l => [...l, selectedMeal.id]); setSelectedMeal(null); }} logged={loggedMeals.includes(selectedMeal.id)} />;
+    return <MealDetail meal={selectedMeal} onBack={() => setSelectedMeal(null)}
+      onLog={() => {
+        const now = new Date();
+        const timeStr = `${String(now.getHours()).padStart(2,'0')}:${String(now.getMinutes()).padStart(2,'0')}`;
+        setLoggedItems(l => [...l, { ...selectedMeal, _id: Date.now(), slot: getMealSlot(), time: timeStr }]);
+        setKitchenLogged(l => [...l, selectedMeal.id]);
+        setSelectedMeal(null);
+      }}
+      logged={kitchenLogged.includes(selectedMeal.id)} />;
   }
+
+  const pct = (v,t) => Math.min(100, Math.round((v/(t||1))*100));
+  const remaining = targets.kcal - totals.kcal;
+  const overTarget = remaining < 0;
 
   return (
     <AppBackground>
       <Screen withNav>
-        <div style={{ paddingTop:'56px', marginBottom:'20px' }}>
+        <div style={{ paddingTop:'56px', marginBottom:'16px' }}>
           <div style={{ fontFamily:'Gilda Display', fontSize:'32px', color:'#3A1848' }}>Today's nutrition.</div>
         </div>
 
-        {/* Macro summary */}
+        {/* Live macro summary */}
         <GlassCard strong accent style={{ marginBottom:'16px' }}>
-          <div style={{ display:'flex', justifyContent:'space-between', alignItems:'center', marginBottom:'12px' }}>
+          <div style={{ display:'flex', justifyContent:'space-between', alignItems:'flex-end', marginBottom:'10px' }}>
             <div>
-              <span style={{ fontFamily:'Gilda Display', fontSize:'36px', color:'#3A1848' }}>{USER.macros.kcal}</span>
-              <span style={{ fontFamily:'Outfit', fontSize:'13px', color:'rgba(152,120,184,0.6)', marginLeft:'4px' }}>/ {USER.macros.kcalTarget} kcal</span>
+              <span style={{ fontFamily:'Gilda Display', fontSize:'40px', color:'#3A1848', lineHeight:1 }}>{totals.kcal}</span>
+              <span style={{ fontFamily:'Outfit', fontSize:'12px', color:'rgba(152,120,184,0.6)', marginLeft:'5px' }}>/ {targets.kcal} kcal</span>
             </div>
-            <div style={{ textAlign:'right' }}>
-              <div style={{ fontFamily:'Outfit', fontSize:'10px', color:'rgba(152,120,184,0.65)' }}>Remaining</div>
-              <div style={{ fontFamily:'Gilda Display', fontSize:'20px', color:'#9878B8' }}>{USER.macros.kcalTarget - USER.macros.kcal}</div>
+            <div style={{ textAlign:'right', paddingBottom:'4px' }}>
+              <div style={{ fontFamily:'Outfit', fontSize:'10px', color:'rgba(152,120,184,0.6)' }}>Remaining</div>
+              <div style={{ fontFamily:'Gilda Display', fontSize:'22px', color: overTarget ? '#e05c7a' : '#9878B8' }}>{Math.abs(remaining)}{overTarget ? ' over' : ''}</div>
             </div>
           </div>
-          <div style={{ height:'8px', borderRadius:'4px', background:'rgba(255,255,255,0.5)', marginBottom:'16px', overflow:'hidden' }}>
-            <div style={{ height:'100%', width:`${(USER.macros.kcal/USER.macros.kcalTarget)*100}%`, background:'linear-gradient(90deg,#C8B8E8,#F8D0E4)', borderRadius:'4px', transition:'width 0.8s ease' }} />
+          <div style={{ height:'8px', borderRadius:'4px', background:'rgba(255,255,255,0.5)', marginBottom:'14px', overflow:'hidden' }}>
+            <div style={{ height:'100%', width:`${pct(totals.kcal,targets.kcal)}%`, background: overTarget ? 'linear-gradient(90deg,#e05c7a,#f8a0b4)' : 'linear-gradient(90deg,#C8B8E8,#F8D0E4)', borderRadius:'4px', transition:'width 0.6s ease' }} />
           </div>
-          <MacroBar label="Protein" value={USER.macros.protein} target={USER.macros.proteinTarget} colour="#C8B8E8" />
-          <MacroBar label="Carbohydrates" value={USER.macros.carbs} target={USER.macros.carbsTarget} colour="#DDD5F5" />
-          <MacroBar label="Fat" value={USER.macros.fat} target={USER.macros.fatTarget} colour="#F8D0E4" />
+          <div style={{ display:'grid', gridTemplateColumns:'repeat(3,1fr)', gap:'8px' }}>
+            {[{l:'Protein',v:totals.protein,t:targets.protein,c:'#C8B8E8',u:'g'},{l:'Carbs',v:totals.carbs,t:targets.carbs,c:'#DDD5F5',u:'g'},{l:'Fat',v:totals.fat,t:targets.fat,c:'#F8D0E4',u:'g'}].map(m => (
+              <div key={m.l}>
+                <div style={{ display:'flex', justifyContent:'space-between', marginBottom:'3px' }}>
+                  <span style={{ fontFamily:'Outfit', fontSize:'10px', color:'rgba(152,120,184,0.7)' }}>{m.l}</span>
+                  <span style={{ fontFamily:'Outfit', fontSize:'10px', color:'#3A1848', fontWeight:500 }}>{Math.round(m.v)}<span style={{ color:'rgba(152,120,184,0.5)' }}>/{m.t}{m.u}</span></span>
+                </div>
+                <div style={{ height:'5px', borderRadius:'3px', background:'rgba(255,255,255,0.5)', overflow:'hidden' }}>
+                  <div style={{ height:'100%', width:`${pct(m.v,m.t)}%`, background:m.c, borderRadius:'3px', transition:'width 0.6s ease' }} />
+                </div>
+              </div>
+            ))}
+          </div>
         </GlassCard>
 
-        {/* Tab row */}
+        {/* Tabs */}
         <div style={{ display:'flex', borderRadius:'24px', background:'rgba(255,255,255,0.4)', padding:'3px', marginBottom:'16px' }}>
-          {[{id:'today',label:"Today's log"},{id:'kitchen',label:'ROSA Kitchen'}].map(t => (
+          {[{id:'log',label:'🤖 Log food'},{id:'kitchen',label:'ROSA Kitchen'}].map(t => (
             <button key={t.id} onClick={() => setTab(t.id)}
               style={{ flex:1, padding:'9px', borderRadius:'20px', fontFamily:'Outfit', fontSize:'12px', fontWeight:500, cursor:'pointer', background: tab===t.id ? '#9878B8' : 'transparent', color: tab===t.id ? '#F2EEFB' : 'rgba(152,120,184,0.7)', border:'none', transition:'all 0.2s' }}>
               {t.label}
@@ -225,10 +327,13 @@ function NutritionScreen({ navigate }) {
           ))}
         </div>
 
-        {tab === 'today' ? (
-          <TodayLog navigate={navigate} />
+        {tab === 'log' ? (
+          <CalorieLogTab aiInput={aiInput} setAiInput={setAiInput} aiState={aiState} parsedItems={parsedItems}
+            onSubmit={submitAI} onConfirm={confirmLog} onCancel={() => { setParsedItems([]); setAiState('idle'); }}
+            onUpdateQty={updateParsedQty} loggedItems={loggedItems} onRemove={removeLogged} />
         ) : (
-          <KitchenTab dietFilter={dietFilter} setDietFilter={setDietFilter} dietOpts={dietOpts} filtered={filtered} searchQ={searchQ} setSearchQ={setSearchQ} setSelectedMeal={setSelectedMeal} loggedMeals={loggedMeals} />
+          <KitchenTab dietFilter={dietFilter} setDietFilter={setDietFilter} dietOpts={dietOpts} filtered={filtered}
+            searchQ={searchQ} setSearchQ={setSearchQ} setSelectedMeal={setSelectedMeal} loggedMeals={kitchenLogged} />
         )}
       </Screen>
       <BottomNav active="nutrition" navigate={navigate} />
@@ -236,46 +341,122 @@ function NutritionScreen({ navigate }) {
   );
 }
 
-function TodayLog({ navigate }) {
-  const [showAdd, setShowAdd] = useState(false);
+function CalorieLogTab({ aiInput, setAiInput, aiState, parsedItems, onSubmit, onConfirm, onCancel, onUpdateQty, loggedItems, onRemove }) {
+  const inputRef = useRef(null);
+
+  const handleKey = (e) => { if (e.key === 'Enter' && !e.shiftKey) { e.preventDefault(); onSubmit(); } };
+
+  const grouped = MEAL_SLOTS.map(slot => ({
+    ...slot,
+    items: loggedItems.filter(m => m.slot === slot.id),
+  })).filter(s => s.items.length > 0);
+
   return (
     <div>
-      <div style={{ display:'flex', justifyContent:'space-between', alignItems:'center', marginBottom:'12px' }}>
-        <SectionHeader>Food log</SectionHeader>
-        <button onClick={() => setShowAdd(!showAdd)} style={{ display:'flex', alignItems:'center', gap:'4px', background:'rgba(152,120,184,0.15)', border:'none', borderRadius:'20px', padding:'6px 12px', cursor:'pointer' }}>
-          <PlusIcon size={14} />
-          <span style={{ fontFamily:'Outfit', fontSize:'11px', fontWeight:500, color:'#9878B8' }}>Add food</span>
+      {/* AI input card */}
+      <GlassCard strong style={{ marginBottom:'12px', padding:'14px' }}>
+        <div style={{ display:'flex', alignItems:'center', gap:'8px', marginBottom:'10px' }}>
+          <div style={{ width:'28px', height:'28px', borderRadius:'50%', background:'linear-gradient(135deg,#9878B8,#C8B8E8)', display:'flex', alignItems:'center', justifyContent:'center', fontSize:'14px', flexShrink:0 }}>🌸</div>
+          <div>
+            <div style={{ fontFamily:'Outfit', fontSize:'12px', fontWeight:600, color:'#3A1848' }}>Tell Rosa what you ate</div>
+            <div style={{ fontFamily:'Outfit', fontSize:'10px', color:'rgba(152,120,184,0.6)' }}>Type naturally — "2 eggs on toast with a latte"</div>
+          </div>
+        </div>
+        <textarea ref={inputRef} value={aiInput} onChange={e => setAiInput(e.target.value)} onKeyDown={handleKey}
+          placeholder="e.g. &quot;a bowl of porridge with blueberries and honey, then a coffee&quot;"
+          disabled={aiState !== 'idle'}
+          style={{ width:'100%', minHeight:'72px', padding:'10px 12px', borderRadius:'12px', border:'0.5px solid rgba(200,184,232,0.4)', background:'rgba(253,238,224,0.3)', fontFamily:'Outfit', fontSize:'13px', color:'#3A1848', resize:'none', outline:'none', boxSizing:'border-box', lineHeight:1.5 }} />
+        <button onClick={() => onSubmit()}
+          disabled={!aiInput.trim() || aiState !== 'idle'}
+          style={{ marginTop:'10px', width:'100%', padding:'12px', borderRadius:'24px', background: aiInput.trim() && aiState==='idle' ? 'linear-gradient(135deg,#9878B8,#7858A0)' : 'rgba(200,184,232,0.3)', color: aiInput.trim() && aiState==='idle' ? '#F2EEFB' : 'rgba(152,120,184,0.5)', border:'none', fontFamily:'Outfit', fontSize:'13px', fontWeight:500, cursor: aiInput.trim() ? 'pointer' : 'default', transition:'all 0.2s' }}>
+          {aiState === 'thinking' ? '🌸 Calculating…' : 'Analyse & log →'}
         </button>
-      </div>
+      </GlassCard>
 
-      {showAdd && (
-        <GlassCard style={{ marginBottom:'12px' }}>
-          <input placeholder="Search food or scan barcode…" style={{ width:'100%', padding:'10px 14px', borderRadius:'12px', border:'0.5px solid rgba(200,184,232,0.4)', background:'rgba(253,238,224,0.4)', fontFamily:'Outfit', fontSize:'13px', color:'#3A1848' }} />
-          <div style={{ fontFamily:'Outfit', fontSize:'11px', color:'rgba(152,120,184,0.55)', marginTop:'8px', textAlign:'center' }}>Barcode scanner available in the full app</div>
+      {/* Quick add chips */}
+      {aiState === 'idle' && (
+        <div style={{ marginBottom:'16px' }}>
+          <div style={{ fontFamily:'Outfit', fontSize:'10px', fontWeight:600, textTransform:'uppercase', letterSpacing:'0.1em', color:'rgba(152,120,184,0.5)', marginBottom:'8px' }}>Quick add</div>
+          <div style={{ display:'flex', flexWrap:'wrap', gap:'6px' }}>
+            {QUICK_FOODS.map(f => (
+              <button key={f.label} onClick={() => onSubmit(f.text)}
+                style={{ padding:'7px 12px', borderRadius:'20px', background:'rgba(255,255,255,0.55)', border:'0.5px solid rgba(200,184,232,0.35)', fontFamily:'Outfit', fontSize:'11px', color:'#3A1848', cursor:'pointer', whiteSpace:'nowrap' }}>
+                {f.label}
+              </button>
+            ))}
+          </div>
+        </div>
+      )}
+
+      {/* Review parsed items */}
+      {aiState === 'review' && parsedItems.length > 0 && (
+        <GlassCard style={{ marginBottom:'16px', padding:'14px' }}>
+          <div style={{ fontFamily:'Outfit', fontSize:'11px', fontWeight:600, textTransform:'uppercase', letterSpacing:'0.1em', color:'rgba(152,120,184,0.6)', marginBottom:'10px' }}>Rosa found {parsedItems.length} item{parsedItems.length>1?'s':''}</div>
+          <div style={{ display:'flex', flexDirection:'column', gap:'8px', marginBottom:'12px' }}>
+            {parsedItems.map(item => (
+              <div key={item.id} style={{ display:'flex', alignItems:'center', gap:'10px', padding:'10px 12px', borderRadius:'12px', background:'rgba(255,255,255,0.45)', border:'0.5px solid rgba(200,184,232,0.2)' }}>
+                <div style={{ fontSize:'22px', flexShrink:0 }}>{item.emoji}</div>
+                <div style={{ flex:1, minWidth:0 }}>
+                  <div style={{ fontFamily:'Outfit', fontSize:'12px', fontWeight:500, color:'#3A1848', textTransform:'capitalize' }}>{item.name}</div>
+                  <div style={{ fontFamily:'Outfit', fontSize:'10px', color:'rgba(152,120,184,0.65)', marginTop:'1px' }}>
+                    {item.kcal} kcal · {item.protein}g P · {item.carbs}g C · {item.fat}g F
+                    {item.estimated && <span style={{ color:'rgba(152,120,184,0.45)' }}> (est.)</span>}
+                  </div>
+                </div>
+                <div style={{ display:'flex', alignItems:'center', gap:'6px', flexShrink:0 }}>
+                  <button onClick={() => onUpdateQty(item.id,-0.5)} style={{ width:'24px', height:'24px', borderRadius:'50%', background:'rgba(200,184,232,0.3)', border:'none', fontFamily:'Outfit', fontSize:'14px', color:'#9878B8', cursor:'pointer', display:'flex', alignItems:'center', justifyContent:'center' }}>−</button>
+                  <span style={{ fontFamily:'Outfit', fontSize:'12px', fontWeight:600, color:'#3A1848', minWidth:'20px', textAlign:'center' }}>{item.displayQty}</span>
+                  <button onClick={() => onUpdateQty(item.id,0.5)} style={{ width:'24px', height:'24px', borderRadius:'50%', background:'rgba(200,184,232,0.3)', border:'none', fontFamily:'Outfit', fontSize:'14px', color:'#9878B8', cursor:'pointer', display:'flex', alignItems:'center', justifyContent:'center' }}>+</button>
+                </div>
+              </div>
+            ))}
+          </div>
+          <div style={{ padding:'8px 12px', borderRadius:'10px', background:'rgba(200,184,232,0.15)', marginBottom:'12px' }}>
+            <span style={{ fontFamily:'Outfit', fontSize:'12px', color:'rgba(58,24,72,0.7)' }}>
+              Total: <strong style={{ color:'#3A1848' }}>{parsedItems.reduce((a,i)=>a+i.kcal,0)} kcal</strong>
+              &nbsp;· {Math.round(parsedItems.reduce((a,i)=>a+i.protein,0)*10)/10}g protein
+            </span>
+          </div>
+          <div style={{ display:'flex', gap:'8px' }}>
+            <button onClick={onCancel} style={{ flex:1, padding:'11px', borderRadius:'20px', background:'rgba(200,184,232,0.2)', border:'none', fontFamily:'Outfit', fontSize:'12px', color:'rgba(152,120,184,0.7)', cursor:'pointer' }}>Edit</button>
+            <button onClick={onConfirm} style={{ flex:2, padding:'11px', borderRadius:'20px', background:'linear-gradient(135deg,#9878B8,#7858A0)', border:'none', fontFamily:'Outfit', fontSize:'13px', fontWeight:500, color:'#F2EEFB', cursor:'pointer' }}>✓ Log it all</button>
+          </div>
         </GlassCard>
       )}
 
-      <div style={{ display:'flex', flexDirection:'column', gap:'8px', marginBottom:'16px' }}>
-        {MEALS_TODAY.map(m => (
-          <GlassCard key={m.id} style={{ display:'flex', alignItems:'center', gap:'12px' }}>
-            <div style={{ width:'40px', height:'40px', borderRadius:'12px', background:'rgba(253,238,224,0.6)', display:'flex', alignItems:'center', justifyContent:'center', fontSize:'20px', flexShrink:0 }}>{m.emoji}</div>
-            <div style={{ flex:1 }}>
-              <div style={{ fontFamily:'Outfit', fontSize:'13px', fontWeight:500, color:'#3A1848' }}>{m.name}</div>
-              <div style={{ fontFamily:'Outfit', fontSize:'11px', color:'rgba(152,120,184,0.65)', marginTop:'2px' }}>{m.time} · {m.diet[0]}</div>
-            </div>
-            <div style={{ textAlign:'right' }}>
-              <div style={{ fontFamily:'Gilda Display', fontSize:'16px', color:'#3A1848' }}>{m.kcal}</div>
-              <div style={{ fontFamily:'Outfit', fontSize:'9px', color:'rgba(152,120,184,0.55)' }}>kcal</div>
-              <div style={{ fontFamily:'Outfit', fontSize:'10px', color:'rgba(152,120,184,0.65)', marginTop:'2px' }}>{m.protein}g prot</div>
-            </div>
-          </GlassCard>
-        ))}
-      </div>
-
-      <GlassCard style={{ textAlign:'center', padding:'20px' }}>
-        <div style={{ fontFamily:'Gilda Display', fontSize:'15px', color:'rgba(152,120,184,0.7)', fontStyle:'italic' }}>"Nourish your body like the athlete you are."</div>
-        <div style={{ fontFamily:'Outfit', fontSize:'11px', color:'rgba(152,120,184,0.45)', marginTop:'6px' }}>— Rosa</div>
-      </GlassCard>
+      {/* Logged meals grouped by meal slot */}
+      {grouped.length > 0 ? grouped.map(slot => (
+        <div key={slot.id} style={{ marginBottom:'16px' }}>
+          <div style={{ display:'flex', justifyContent:'space-between', alignItems:'center', marginBottom:'8px' }}>
+            <SectionHeader>{slot.label}</SectionHeader>
+            <span style={{ fontFamily:'Outfit', fontSize:'11px', color:'rgba(152,120,184,0.6)' }}>
+              {slot.items.reduce((a,m)=>a+m.kcal,0)} kcal
+            </span>
+          </div>
+          <div style={{ display:'flex', flexDirection:'column', gap:'6px' }}>
+            {slot.items.map(m => (
+              <div key={m._id} style={{ display:'flex', alignItems:'center', gap:'10px', padding:'10px 14px', borderRadius:'14px', background:'rgba(255,255,255,0.5)', backdropFilter:'blur(8px)' }}>
+                <div style={{ width:'36px', height:'36px', borderRadius:'10px', background:'rgba(253,238,224,0.7)', display:'flex', alignItems:'center', justifyContent:'center', fontSize:'18px', flexShrink:0 }}>{m.emoji || '🍽️'}</div>
+                <div style={{ flex:1, minWidth:0 }}>
+                  <div style={{ fontFamily:'Outfit', fontSize:'13px', fontWeight:500, color:'#3A1848', textTransform:'capitalize', whiteSpace:'nowrap', overflow:'hidden', textOverflow:'ellipsis' }}>{m.name}</div>
+                  <div style={{ fontFamily:'Outfit', fontSize:'10px', color:'rgba(152,120,184,0.65)', marginTop:'1px' }}>{m.time} · {m.protein}g prot</div>
+                </div>
+                <div style={{ textAlign:'right', flexShrink:0 }}>
+                  <div style={{ fontFamily:'Gilda Display', fontSize:'16px', color:'#3A1848' }}>{m.kcal}</div>
+                  <div style={{ fontFamily:'Outfit', fontSize:'9px', color:'rgba(152,120,184,0.5)' }}>kcal</div>
+                </div>
+                <button onClick={() => onRemove(m._id)} style={{ width:'24px', height:'24px', borderRadius:'50%', background:'rgba(200,184,232,0.2)', border:'none', fontSize:'12px', color:'rgba(152,120,184,0.5)', cursor:'pointer', flexShrink:0 }}>×</button>
+              </div>
+            ))}
+          </div>
+        </div>
+      )) : (
+        <GlassCard style={{ textAlign:'center', padding:'24px' }}>
+          <div style={{ fontSize:'32px', marginBottom:'8px' }}>🌸</div>
+          <div style={{ fontFamily:'Gilda Display', fontSize:'15px', color:'rgba(152,120,184,0.7)', fontStyle:'italic' }}>"What have you eaten today? Tell me and I'll track it for you."</div>
+          <div style={{ fontFamily:'Outfit', fontSize:'11px', color:'rgba(152,120,184,0.45)', marginTop:'6px' }}>— Rosa</div>
+        </GlassCard>
+      )}
     </div>
   );
 }

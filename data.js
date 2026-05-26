@@ -86,6 +86,175 @@ const ROSA_TIPS = [
   "Protein isn't just for gym bros. It's how you rebuild, repair, and rise.",
 ];
 
+// ─── FOOD DATABASE ───────────────────────────────────────────────────────────
+// n=name  a=aliases  k=kcal/100g  p=protein  c=carbs  f=fat  g=default grams  e=emoji  cat=meal category
+const FOOD_DB = [
+  // ── Eggs & dairy
+  {n:'egg',             a:['eggs','boiled egg','fried egg','poached egg','scrambled egg','scrambled eggs','hard boiled egg','soft boiled egg'], k:155,p:13,  c:1.1,f:11,  g:60,  e:'🥚',cat:'protein'},
+  {n:'omelette',        a:['omelet','egg omelette'],                    k:154,p:11,  c:0.4,f:12,  g:130, e:'🍳',cat:'protein'},
+  {n:'whole milk',      a:['milk','full fat milk'],                     k:61, p:3.2, c:4.8,f:3.3, g:240, e:'🥛',cat:'dairy'},
+  {n:'skimmed milk',    a:['skim milk','semi skimmed','low fat milk'],  k:34, p:3.4, c:4.8,f:0.1, g:240, e:'🥛',cat:'dairy'},
+  {n:'latte',           a:['flat white','coffee with milk','oat latte','almond latte'], k:60,p:3.6,c:5.6,f:2.4,g:250,e:'☕',cat:'drink'},
+  {n:'cappuccino',      a:['macchiato'],                                k:50, p:2.8, c:4.8,f:1.7, g:180, e:'☕',cat:'drink'},
+  {n:'black coffee',    a:['coffee','americano','espresso','long black'],k:5,  p:0.3, c:0.7,f:0,   g:200, e:'☕',cat:'drink'},
+  {n:'green tea',       a:['tea','herbal tea','cup of tea','matcha'],   k:2,  p:0,   c:0.3,f:0,   g:250, e:'🍵',cat:'drink'},
+  {n:'Greek yoghurt',   a:['greek yogurt','plain yoghurt','yoghurt','yogurt','natural yoghurt'], k:97,p:9,c:3.6,f:5,g:150,e:'🫙',cat:'dairy'},
+  {n:'cottage cheese',  a:[],                                           k:98, p:11,  c:3.4,f:4.3, g:120, e:'🫙',cat:'dairy'},
+  {n:'cheddar cheese',  a:['cheese','cheddar','mozzarella'],           k:403,p:25,  c:0.1,f:33,  g:30,  e:'🧀',cat:'dairy'},
+  {n:'butter',          a:[],                                           k:717,p:0.9, c:0.1,f:81,  g:10,  e:'🧈',cat:'fat'},
+  {n:'cream cheese',    a:[],                                           k:342,p:5.9, c:4.1,f:34,  g:30,  e:'🫙',cat:'dairy'},
+  {n:'protein shake',   a:['protein powder','whey shake','whey protein','protein drink','shake'], k:150,p:25,c:8,f:2,g:300,e:'🥛',cat:'protein'},
+  // ── Meat & fish
+  {n:'chicken breast',  a:['chicken','grilled chicken','baked chicken','roast chicken','chicken fillet'], k:165,p:31,c:0,f:3.6,g:150,e:'🍗',cat:'protein'},
+  {n:'chicken thigh',   a:['chicken thighs'],                          k:209,p:26,  c:0,  f:11,  g:130, e:'🍗',cat:'protein'},
+  {n:'salmon',          a:['salmon fillet','grilled salmon','baked salmon','smoked salmon'], k:208,p:20,c:0,f:13,g:150,e:'🐟',cat:'protein'},
+  {n:'tuna',            a:['tuna steak','tinned tuna','canned tuna'],  k:116,p:26,  c:0,  f:1,   g:100, e:'🐟',cat:'protein'},
+  {n:'beef mince',      a:['ground beef','mince','minced beef'],        k:254,p:26,  c:0,  f:17,  g:100, e:'🥩',cat:'protein'},
+  {n:'steak',           a:['beef steak','sirloin','ribeye'],            k:271,p:26,  c:0,  f:18,  g:150, e:'🥩',cat:'protein'},
+  {n:'turkey breast',   a:['turkey'],                                   k:135,p:30,  c:0,  f:1.5, g:120, e:'🦃',cat:'protein'},
+  {n:'bacon',           a:['bacon rasher','bacon strip'],               k:541,p:37,  c:0,  f:42,  g:30,  e:'🥓',cat:'protein'},
+  {n:'sausage',         a:['pork sausage','banger','sausages'],        k:301,p:13,  c:7,  f:25,  g:60,  e:'🌭',cat:'protein'},
+  {n:'prawns',          a:['shrimp','king prawns'],                     k:99, p:21,  c:0.9,f:1,   g:100, e:'🦐',cat:'protein'},
+  {n:'cod',             a:['cod fillet','white fish','haddock'],        k:82, p:18,  c:0,  f:0.9, g:150, e:'🐟',cat:'protein'},
+  // ── Plant protein
+  {n:'tofu',            a:['firm tofu','silken tofu'],                  k:76, p:8,   c:1.9,f:4.2, g:150, e:'🟨',cat:'protein'},
+  {n:'tempeh',          a:[],                                           k:193,p:19,  c:9,  f:11,  g:100, e:'🟫',cat:'protein'},
+  {n:'edamame',         a:[],                                           k:121,p:11,  c:8.9,f:5.2, g:100, e:'🫘',cat:'protein'},
+  {n:'chickpeas',       a:['chick peas','garbanzo'],                    k:164,p:8.9, c:27, f:2.6, g:100, e:'🫘',cat:'carb'},
+  {n:'lentils',         a:['red lentils','green lentils'],              k:116,p:9,   c:20, f:0.4, g:100, e:'🫘',cat:'carb'},
+  {n:'black beans',     a:['kidney beans','beans','mixed beans'],       k:132,p:8.9, c:24, f:0.5, g:100, e:'🫘',cat:'carb'},
+  // ── Bread & grains
+  {n:'white bread',     a:['white toast','white slice'],                k:265,p:9,   c:49, f:3.2, g:35,  e:'🍞',cat:'carb'},
+  {n:'brown bread',     a:['wholemeal bread','brown toast','wholegrain','brown slice'], k:247,p:11,c:42,f:3.4,g:35,e:'🍞',cat:'carb'},
+  {n:'sourdough',       a:['sourdough bread','sourdough toast','sourdough slice'], k:274,p:10,c:52,f:2.2,g:50,e:'🍞',cat:'carb'},
+  {n:'oats',            a:['porridge','oatmeal','overnight oats','porridge oats','oat porridge'], k:389,p:17,c:66,f:7,g:80,e:'🥣',cat:'carb'},
+  {n:'granola',         a:[],                                           k:440,p:10,  c:62, f:17,  g:60,  e:'🥣',cat:'carb'},
+  {n:'muesli',          a:[],                                           k:363,p:10,  c:62, f:7,   g:60,  e:'🥣',cat:'carb'},
+  {n:'white rice',      a:['rice','basmati rice','steamed rice','cooked rice'], k:130,p:2.7,c:28,f:0.3,g:200,e:'🍚',cat:'carb'},
+  {n:'brown rice',      a:['wholegrain rice'],                          k:111,p:2.6, c:23, f:0.9, g:200, e:'🍚',cat:'carb'},
+  {n:'quinoa',          a:[],                                           k:120,p:4.4, c:21, f:1.9, g:185, e:'🌾',cat:'carb'},
+  {n:'pasta',           a:['spaghetti','penne','linguine','fusilli','tagliatelle'], k:157,p:5.8,c:31,f:0.9,g:200,e:'🍝',cat:'carb'},
+  {n:'sweet potato',    a:['sweet potatoes'],                           k:86, p:1.6, c:20, f:0.1, g:150, e:'🍠',cat:'carb'},
+  {n:'potato',          a:['potatoes','baked potato','jacket potato','mashed potato','chips'], k:77,p:2,c:17,f:0.1,g:180,e:'🥔',cat:'carb'},
+  {n:'wrap',            a:['tortilla','flatbread','pitta'],             k:310,p:8,   c:51, f:7,   g:60,  e:'🫓',cat:'carb'},
+  // ── Fruit
+  {n:'banana',          a:['bananas'],                                  k:89, p:1.1, c:23, f:0.3, g:120, e:'🍌',cat:'fruit'},
+  {n:'apple',           a:['apples'],                                   k:52, p:0.3, c:14, f:0.2, g:150, e:'🍎',cat:'fruit'},
+  {n:'orange',          a:['oranges'],                                  k:47, p:0.9, c:12, f:0.1, g:150, e:'🍊',cat:'fruit'},
+  {n:'strawberries',    a:['strawberry'],                               k:32, p:0.7, c:7.7,f:0.3, g:80,  e:'🍓',cat:'fruit'},
+  {n:'blueberries',     a:['blueberry'],                                k:57, p:0.7, c:14, f:0.3, g:80,  e:'🫐',cat:'fruit'},
+  {n:'raspberries',     a:['raspberry'],                                k:52, p:1.2, c:12, f:0.7, g:80,  e:'🍓',cat:'fruit'},
+  {n:'mixed berries',   a:['berries','berry mix'],                      k:45, p:0.9, c:11, f:0.5, g:80,  e:'🍓',cat:'fruit'},
+  {n:'mango',           a:[],                                           k:60, p:0.8, c:15, f:0.4, g:150, e:'🥭',cat:'fruit'},
+  {n:'grapes',          a:[],                                           k:69, p:0.7, c:18, f:0.2, g:80,  e:'🍇',cat:'fruit'},
+  {n:'avocado',         a:['half avocado','avo'],                       k:160,p:2,   c:9,  f:15,  g:100, e:'🥑',cat:'fat'},
+  {n:'pear',            a:['pears'],                                    k:57, p:0.4, c:15, f:0.1, g:150, e:'🍐',cat:'fruit'},
+  // ── Vegetables
+  {n:'spinach',         a:[],                                           k:23, p:2.9, c:3.6,f:0.4, g:80,  e:'🥬',cat:'veg'},
+  {n:'broccoli',        a:[],                                           k:34, p:2.8, c:7,  f:0.4, g:80,  e:'🥦',cat:'veg'},
+  {n:'cucumber',        a:[],                                           k:16, p:0.7, c:3.6,f:0.1, g:80,  e:'🥒',cat:'veg'},
+  {n:'tomato',          a:['tomatoes','cherry tomatoes','plum tomatoes'],k:18,p:0.9, c:3.9,f:0.2, g:100, e:'🍅',cat:'veg'},
+  {n:'carrot',          a:['carrots'],                                  k:41, p:0.9, c:10, f:0.2, g:80,  e:'🥕',cat:'veg'},
+  {n:'mixed peppers',   a:['peppers','pepper','bell pepper'],           k:27, p:1,   c:6.3,f:0.2, g:80,  e:'🌶️',cat:'veg'},
+  {n:'kale',            a:[],                                           k:35, p:2.9, c:4.4,f:0.5, g:60,  e:'🥬',cat:'veg'},
+  {n:'asparagus',       a:[],                                           k:20, p:2.2, c:3.7,f:0.1, g:80,  e:'🌿',cat:'veg'},
+  {n:'mushrooms',       a:['mushroom'],                                 k:22, p:3.1, c:3.3,f:0.3, g:80,  e:'🍄',cat:'veg'},
+  {n:'courgette',       a:['zucchini','courgettes'],                    k:17, p:1.2, c:3.1,f:0.3, g:80,  e:'🥬',cat:'veg'},
+  {n:'mixed veg',       a:['mixed vegetables','stir fry veg','roasted veg'], k:40,p:2,c:8,f:0.3,g:100,e:'🥗',cat:'veg'},
+  {n:'salad',           a:['side salad','green salad','mixed salad'],   k:15, p:1,   c:2.5,f:0.2, g:80,  e:'🥗',cat:'veg'},
+  // ── Nuts, seeds & fats
+  {n:'almonds',         a:['almond'],                                   k:579,p:21,  c:22, f:50,  g:30,  e:'🌰',cat:'fat'},
+  {n:'walnuts',         a:['walnut'],                                   k:654,p:15,  c:14, f:65,  g:30,  e:'🌰',cat:'fat'},
+  {n:'cashews',         a:['cashew'],                                   k:553,p:18,  c:30, f:44,  g:30,  e:'🌰',cat:'fat'},
+  {n:'mixed nuts',      a:['nuts','handful of nuts'],                   k:607,p:15,  c:23, f:54,  g:30,  e:'🌰',cat:'fat'},
+  {n:'peanut butter',   a:['peanut butter on toast','nut butter'],      k:588,p:25,  c:20, f:50,  g:15,  e:'🥜',cat:'fat'},
+  {n:'chia seeds',      a:['chia'],                                     k:486,p:17,  c:42, f:31,  g:15,  e:'🌱',cat:'fat'},
+  {n:'olive oil',       a:[],                                           k:884,p:0,   c:0,  f:100, g:10,  e:'🫒',cat:'fat'},
+  // ── Snacks & extras
+  {n:'hummus',          a:[],                                           k:177,p:7.9, c:14, f:10,  g:30,  e:'🫙',cat:'snack'},
+  {n:'dark chocolate',  a:['chocolate','dark choc','choc'],            k:546,p:5,   c:60, f:31,  g:30,  e:'🍫',cat:'snack'},
+  {n:'protein bar',     a:['bar','snack bar'],                          k:350,p:20,  c:38, f:11,  g:60,  e:'🍫',cat:'snack'},
+  {n:'rice cakes',      a:['rice cake'],                                k:387,p:7,   c:81, f:2.8, g:20,  e:'🌾',cat:'snack'},
+  {n:'cereal',          a:['cornflakes','bran flakes','weetabix'],      k:370,p:8,   c:78, f:2,   g:40,  e:'🥣',cat:'carb'},
+  {n:'honey',           a:[],                                           k:304,p:0.3, c:82, f:0,   g:15,  e:'🍯',cat:'snack'},
+  {n:'jam',             a:['jelly'],                                    k:250,p:0.4, c:65, f:0.1, g:15,  e:'🍓',cat:'snack'},
+  // ── Drinks
+  {n:'orange juice',    a:['OJ','fruit juice','apple juice'],           k:45, p:0.7, c:10, f:0.2, g:200, e:'🍊',cat:'drink'},
+  {n:'smoothie',        a:['fruit smoothie','green smoothie','protein smoothie'], k:80,p:3,c:16,f:1,g:300,e:'🥤',cat:'drink'},
+  {n:'water',           a:[],                                           k:0,  p:0,   c:0,  f:0,   g:300, e:'💧',cat:'drink'},
+  {n:'wine',            a:['glass of wine','red wine','white wine'],    k:83, p:0.1, c:2.6,f:0,   g:150, e:'🍷',cat:'drink'},
+  {n:'beer',            a:['lager','ale'],                              k:43, p:0.5, c:3.6,f:0,   g:330, e:'🍺',cat:'drink'},
+  {n:'protein shake',   a:['protein drink','whey shake','shake'],       k:150,p:25,  c:8,  f:2,   g:300, e:'🥛',cat:'drink'},
+];
+
+// ─── NATURAL LANGUAGE FOOD PARSER ────────────────────────────────────────────
+function parseFood(text) {
+  const WORD_QTY = {a:1,an:1,one:1,two:2,three:3,four:4,five:5,six:6,half:0.5,quarter:0.25,double:2,couple:2,large:1.4,big:1.4,small:0.65,medium:1,tiny:0.4,handful:0.5,few:3};
+  const FILLERS = ['of','the','some','bit','piece','slice','slices','cup','cups','bowl','bowls','glass','glasses','serving','portion','scoop','tablespoon','tbsp','teaspoon','tsp','ml','grams','g','with','on'];
+
+  const chunks = text.toLowerCase().trim().split(/\s*(?:\band\b|,|\+|\bthen\b|\bplus\b)\s*/);
+  const results = [];
+
+  for (let chunk of chunks) {
+    chunk = chunk.trim();
+    if (!chunk || chunk.length < 2) continue;
+    let qty = 1, food = chunk;
+
+    // Leading integer or decimal
+    const nm = food.match(/^(\d+\.?\d*)\s*/);
+    if (nm) { qty = parseFloat(nm[1]); food = food.slice(nm[0].length).trim(); }
+
+    // Leading word quantity
+    for (const [word, val] of Object.entries(WORD_QTY)) {
+      if (new RegExp(`^${word}\\b\\s*`,'i').test(food)) {
+        qty *= val;
+        food = food.replace(new RegExp(`^${word}\\b\\s*`,'i'),'').trim();
+        break;
+      }
+    }
+
+    // Strip filler words from the front
+    let changed = true;
+    while (changed) {
+      changed = false;
+      for (const f of FILLERS) {
+        if (new RegExp(`^${f}\\s+`,'i').test(food)) {
+          food = food.replace(new RegExp(`^${f}\\s+`,'i'),'').trim();
+          changed = true;
+        }
+      }
+    }
+    if (!food) continue;
+
+    // Match against FOOD_DB
+    let best = null, bestScore = 0;
+    for (const item of FOOD_DB) {
+      for (const c of [item.n, ...item.a]) {
+        let score = 0;
+        if (food === c) score = 100;
+        else if (food.startsWith(c) || c.startsWith(food)) score = 88;
+        else if (food.includes(c) || c.includes(food)) score = 75 * Math.min(food.length,c.length)/Math.max(food.length,c.length);
+        else {
+          const fw = new Set(food.split(' ').filter(w=>w.length>2));
+          const cw = c.split(' ').filter(w=>w.length>2);
+          const overlap = cw.filter(w=>fw.has(w)).length;
+          if (overlap) score = 55 * overlap / Math.max(fw.size,cw.length);
+        }
+        if (score > bestScore) { bestScore = score; best = item; }
+      }
+      if (bestScore===100) break;
+    }
+
+    if (best && bestScore >= 30) {
+      const f = (best.g * qty) / 100;
+      results.push({ id: Date.now()+Math.random(), name:best.n, displayQty:qty, kcal:Math.round(best.k*f), protein:Math.round(best.p*f*10)/10, carbs:Math.round(best.c*f*10)/10, fat:Math.round(best.f*f*10)/10, emoji:best.e, _item:best, qty });
+    } else if (food.length > 2) {
+      results.push({ id: Date.now()+Math.random(), name:food, displayQty:qty, kcal:Math.round(150*qty), protein:Math.round(8*qty*10)/10, carbs:Math.round(15*qty*10)/10, fat:Math.round(6*qty*10)/10, emoji:'🍽️', _item:null, qty, estimated:true });
+    }
+  }
+  return results;
+}
+
 // ─── BRAIN MATRIX ────────────────────────────────────────────────────────────
 function computeMatrix(answers) {
   const { lifeStage, goals = [], daysPerWeek, equipment, dietType } = answers;
