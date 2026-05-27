@@ -48,30 +48,64 @@ function DevTestButton({ screen, navigate }) {
 }
 
 // ─── ROOT APP ─────────────────────────────────────────────────────────────────
+async function getProfileRoute(session) {
+  try {
+    const { data } = await supabase.from('profiles').select('onboarding_complete').eq('id', session.user.id).single();
+    return data?.onboarding_complete ? 'home' : 'onboarding';
+  } catch (_) {
+    return 'home';
+  }
+}
+
 function App() {
   const [screen, setScreen] = useState('splash');
   const [params, setParams] = useState({});
   const [consentData, setConsentData] = useState(null);
   const [authChecked, setAuthChecked] = useState(false);
 
-  // Check existing Supabase session on load
   useEffect(() => {
-    supabase.auth.getSession().then(async ({ data: { session } }) => {
-      if (session) {
-        const { data: profile } = await supabase.from('profiles').select('onboarding_complete').eq('id', session.user.id).single();
-        setScreen(profile?.onboarding_complete ? 'home' : 'onboarding');
-      }
+    let done = false;
+    const finish = (dest) => {
+      if (done) return;
+      done = true;
+      if (dest) setScreen(dest);
       setAuthChecked(true);
-    });
+    };
 
-    const { data: { subscription } } = supabase.auth.onAuthStateChange(async (_event, session) => {
-      if (session && screen === 'auth') {
-        const { data: profile } = await supabase.from('profiles').select('onboarding_complete').eq('id', session.user.id).single();
-        setScreen(profile?.onboarding_complete ? 'home' : 'onboarding');
-      }
-    });
+    // Hard 3s timeout — never leave user stuck on loading screen
+    const timeout = setTimeout(() => finish(null), 3000);
 
-    return () => subscription.unsubscribe();
+    supabase.auth.getSession()
+      .then(async ({ data: { session } }) => {
+        if (session) {
+          const dest = await getProfileRoute(session);
+          finish(dest);
+        } else {
+          finish(null); // no session → splash
+        }
+      })
+      .catch(() => finish(null))
+      .finally(() => clearTimeout(timeout));
+
+    let subscription;
+    try {
+      const { data } = supabase.auth.onAuthStateChange(async (_event, session) => {
+        if (session && (screen === 'auth' || screen === 'splash')) {
+          try {
+            const dest = await getProfileRoute(session);
+            setScreen(dest);
+          } catch (_) {
+            setScreen('home');
+          }
+        }
+      });
+      subscription = data.subscription;
+    } catch (_) {}
+
+    return () => {
+      clearTimeout(timeout);
+      try { subscription && subscription.unsubscribe(); } catch (_) {}
+    };
   }, []);
 
   const navigate = (dest, p = {}) => {
@@ -88,8 +122,9 @@ function App() {
   if (!authChecked) {
     return (
       <AppBackground>
-        <div style={{ minHeight:'100vh', display:'flex', alignItems:'center', justifyContent:'center' }}>
-          <div style={{ fontFamily:'Gilda Display', fontSize:'48px', color:'#3A1848', letterSpacing:'0.06em', animation:'pulse 1.5s ease-in-out infinite' }}>ROSA</div>
+        <div style={{ minHeight:'100vh', display:'flex', flexDirection:'column', alignItems:'center', justifyContent:'center', gap:'20px' }}>
+          <div style={{ fontFamily:'Gilda Display', fontSize:'56px', color:'#3A1848', letterSpacing:'0.06em', animation:'pulse 1.5s ease-in-out infinite' }}>ROSA</div>
+          <div style={{ fontFamily:'Outfit', fontSize:'12px', color:'rgba(152,120,184,0.5)', letterSpacing:'0.08em' }}>loading…</div>
         </div>
       </AppBackground>
     );

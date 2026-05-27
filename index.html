@@ -2,9 +2,15 @@
 <html lang="en">
 <head>
   <meta charset="UTF-8" />
-  <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no, viewport-fit=cover" />
+  <meta name="theme-color" content="#F2EEFB" />
+  <meta name="apple-mobile-web-app-capable" content="yes" />
+  <meta name="apple-mobile-web-app-status-bar-style" content="default" />
+  <meta name="apple-mobile-web-app-title" content="ROSA" />
+  <meta name="mobile-web-app-capable" content="yes" />
   <title>ROSA</title>
   <link href="https://fonts.googleapis.com/css2?family=Gilda+Display&family=Outfit:wght@200;300;400;500&display=swap" rel="stylesheet" />
+  <!-- Core libraries — pinned versions for CDN cache stability on mobile -->
   <script crossorigin src="https://unpkg.com/react@18/umd/react.production.min.js"></script>
   <script crossorigin src="https://unpkg.com/react-dom@18/umd/react-dom.production.min.js"></script>
   <script src="https://unpkg.com/@babel/standalone/babel.min.js"></script>
@@ -26,7 +32,7 @@
       --rosa-font-ui:   'Outfit', sans-serif;
     }
     *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
-    html, body { height: 100%; }
+    html { height: 100%; height: -webkit-fill-available; }
     body {
       font-family: var(--rosa-font-ui);
       background: var(--rosa-grad);
@@ -34,14 +40,22 @@
       justify-content: center;
       align-items: flex-start;
       min-height: 100vh;
+      min-height: -webkit-fill-available;
+      -webkit-tap-highlight-color: transparent;
+      overscroll-behavior: none;
     }
     #root {
       width: 100%;
-      max-width: 390px;
+      max-width: 430px;
       min-height: 100vh;
+      min-height: -webkit-fill-available;
       position: relative;
-      overflow: hidden;
+      overflow-x: hidden;
+      /* iOS safe area padding */
+      padding-bottom: env(safe-area-inset-bottom, 0px);
     }
+    /* Prevent double-tap zoom on buttons/links on iOS */
+    button, a { touch-action: manipulation; }
     @keyframes fadeUp   { from{opacity:0;transform:translateY(20px)} to{opacity:1;transform:translateY(0)} }
     @keyframes scaleIn  { from{opacity:0;transform:scale(0.96)} to{opacity:1;transform:scale(1)} }
     @keyframes slideL   { from{opacity:0;transform:translateX(28px)} to{opacity:1;transform:translateX(0)} }
@@ -78,9 +92,29 @@ const SUPABASE_URL      = 'https://dnczvdrtywawkpiptkcs.supabase.co';
 const SUPABASE_ANON_KEY = 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6ImRuY3p2ZHJ0eXdhd2twaXB0a2NzIiwicm9sZSI6ImFub24iLCJpYXQiOjE3NzQ1MzI4NzksImV4cCI6MjA5MDEwODg3OX0.DYwBwLlraQaLEqgcYTU0RnwVW50Bz6PQv4MUc-crd4E';
 
 // Minimal Supabase client (no npm — uses the CDN JS bundle loaded in index.html)
-// If not yet configured, all auth calls are gracefully no-ops so the UI still works.
+// Fully chainable stub so .from().select().eq().single() never throws even if unconfigured.
+
+// Chainable query builder stub — every method returns itself; awaiting resolves immediately.
+function _makeChain(data) {
+  const p = Promise.resolve({ data: data !== undefined ? data : null, error: null });
+  const chain = {
+    select:  () => chain,   insert: () => chain,
+    update:  () => chain,   delete: () => chain,
+    upsert:  () => chain,   eq:     () => chain,
+    neq:     () => chain,   in:     () => chain,
+    order:   () => chain,   limit:  () => chain,
+    single:  () => chain,   maybeSingle: () => chain,
+    // Makes the chain awaitable / thenable
+    then:  (res, rej) => p.then(res, rej),
+    catch: (fn)       => p.catch(fn),
+    finally:(fn)      => p.finally(fn),
+  };
+  return chain;
+}
+
 let supabase;
 try {
+  if (!window.supabase) throw new Error('Supabase CDN not loaded');
   supabase = window.supabase.createClient(SUPABASE_URL, SUPABASE_ANON_KEY, {
     auth: {
       autoRefreshToken: true,
@@ -89,23 +123,21 @@ try {
     },
   });
 } catch (e) {
-  // Supabase not yet configured — stub so UI renders
+  // Graceful stub — entire app works in read-only demo mode
   supabase = {
     auth: {
-      signUp:                 async () => ({ data: null, error: { message: 'Supabase not configured yet.' } }),
-      signInWithPassword:     async () => ({ data: null, error: { message: 'Supabase not configured yet.' } }),
-      signInWithOAuth:        async () => ({ data: null, error: { message: 'Supabase not configured yet.' } }),
-      resetPasswordForEmail:  async () => ({ data: null, error: null }),
-      signOut:                async () => ({}),
-      getSession:             async () => ({ data: { session: null } }),
-      onAuthStateChange:      (cb) => { cb('SIGNED_OUT', null); return { data: { subscription: { unsubscribe: () => {} } } }; },
+      signUp:                async () => ({ data: null, error: { message: 'Auth not configured.' } }),
+      signInWithPassword:    async () => ({ data: null, error: { message: 'Auth not configured.' } }),
+      signInWithOAuth:       async () => ({ data: null, error: { message: 'Auth not configured.' } }),
+      resetPasswordForEmail: async () => ({ data: null, error: null }),
+      signOut:               async () => ({}),
+      getSession:            async () => ({ data: { session: null } }),
+      onAuthStateChange:     (cb) => {
+        try { cb('SIGNED_OUT', null); } catch(_) {}
+        return { data: { subscription: { unsubscribe: () => {} } } };
+      },
     },
-    from: () => ({
-      select: async () => ({ data: [], error: null }),
-      insert: async () => ({ data: null, error: null }),
-      update: async () => ({ data: null, error: null }),
-      delete: async () => ({ data: null, error: null }),
-    }),
+    from: () => _makeChain(),
   };
 }
 
@@ -2797,30 +2829,64 @@ function DevTestButton({ screen, navigate }) {
 }
 
 // ─── ROOT APP ─────────────────────────────────────────────────────────────────
+async function getProfileRoute(session) {
+  try {
+    const { data } = await supabase.from('profiles').select('onboarding_complete').eq('id', session.user.id).single();
+    return data?.onboarding_complete ? 'home' : 'onboarding';
+  } catch (_) {
+    return 'home';
+  }
+}
+
 function App() {
   const [screen, setScreen] = useState('splash');
   const [params, setParams] = useState({});
   const [consentData, setConsentData] = useState(null);
   const [authChecked, setAuthChecked] = useState(false);
 
-  // Check existing Supabase session on load
   useEffect(() => {
-    supabase.auth.getSession().then(async ({ data: { session } }) => {
-      if (session) {
-        const { data: profile } = await supabase.from('profiles').select('onboarding_complete').eq('id', session.user.id).single();
-        setScreen(profile?.onboarding_complete ? 'home' : 'onboarding');
-      }
+    let done = false;
+    const finish = (dest) => {
+      if (done) return;
+      done = true;
+      if (dest) setScreen(dest);
       setAuthChecked(true);
-    });
+    };
 
-    const { data: { subscription } } = supabase.auth.onAuthStateChange(async (_event, session) => {
-      if (session && screen === 'auth') {
-        const { data: profile } = await supabase.from('profiles').select('onboarding_complete').eq('id', session.user.id).single();
-        setScreen(profile?.onboarding_complete ? 'home' : 'onboarding');
-      }
-    });
+    // Hard 3s timeout — never leave user stuck on loading screen
+    const timeout = setTimeout(() => finish(null), 3000);
 
-    return () => subscription.unsubscribe();
+    supabase.auth.getSession()
+      .then(async ({ data: { session } }) => {
+        if (session) {
+          const dest = await getProfileRoute(session);
+          finish(dest);
+        } else {
+          finish(null); // no session → splash
+        }
+      })
+      .catch(() => finish(null))
+      .finally(() => clearTimeout(timeout));
+
+    let subscription;
+    try {
+      const { data } = supabase.auth.onAuthStateChange(async (_event, session) => {
+        if (session && (screen === 'auth' || screen === 'splash')) {
+          try {
+            const dest = await getProfileRoute(session);
+            setScreen(dest);
+          } catch (_) {
+            setScreen('home');
+          }
+        }
+      });
+      subscription = data.subscription;
+    } catch (_) {}
+
+    return () => {
+      clearTimeout(timeout);
+      try { subscription && subscription.unsubscribe(); } catch (_) {}
+    };
   }, []);
 
   const navigate = (dest, p = {}) => {
@@ -2837,8 +2903,9 @@ function App() {
   if (!authChecked) {
     return (
       <AppBackground>
-        <div style={{ minHeight:'100vh', display:'flex', alignItems:'center', justifyContent:'center' }}>
-          <div style={{ fontFamily:'Gilda Display', fontSize:'48px', color:'#3A1848', letterSpacing:'0.06em', animation:'pulse 1.5s ease-in-out infinite' }}>ROSA</div>
+        <div style={{ minHeight:'100vh', display:'flex', flexDirection:'column', alignItems:'center', justifyContent:'center', gap:'20px' }}>
+          <div style={{ fontFamily:'Gilda Display', fontSize:'56px', color:'#3A1848', letterSpacing:'0.06em', animation:'pulse 1.5s ease-in-out infinite' }}>ROSA</div>
+          <div style={{ fontFamily:'Outfit', fontSize:'12px', color:'rgba(152,120,184,0.5)', letterSpacing:'0.08em' }}>loading…</div>
         </div>
       </AppBackground>
     );
