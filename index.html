@@ -873,28 +873,60 @@ function AuthScreen({ navigate, consentData }) {
   const [error, setError] = useState('');
   const [showPassword, setShowPassword] = useState(false);
 
+  const ROSA_URL = 'https://rosa-app-ten.vercel.app';
+  const redirectTo = typeof window !== 'undefined' && window.location.hostname !== 'localhost' ? ROSA_URL : window.location.origin;
+
+  const friendlyError = (e) => {
+    const msg = e?.message || '';
+    if (msg.includes('Failed to fetch') || msg.includes('NetworkError') || msg.includes('fetch'))
+      return 'Connection error — please check your internet and try again.';
+    if (msg.includes('Invalid login credentials'))
+      return 'Incorrect email or password. Please try again.';
+    if (msg.includes('Email not confirmed'))
+      return 'Please verify your email first — check your inbox.';
+    if (msg.includes('User already registered'))
+      return 'An account with this email already exists. Try signing in instead.';
+    if (msg.includes('Password should be'))
+      return 'Password must be at least 6 characters.';
+    if (msg.includes('rate limit') || msg.includes('too many'))
+      return 'Too many attempts — please wait a minute and try again.';
+    return msg || 'Something went wrong. Please try again.';
+  };
+
   const handleEmail = async () => {
     if (!email || (mode !== 'forgot' && !password)) { setError('Please fill in all fields.'); return; }
+    if (mode === 'signup' && !name.trim()) { setError('Please enter your name.'); return; }
+    if (mode !== 'forgot' && password.length < 6) { setError('Password must be at least 6 characters.'); return; }
     setLoading('email');
     setError('');
     try {
       if (mode === 'signup') {
-        const redirectTo = window.location.hostname === 'localhost' ? window.location.origin : 'https://rosa-app-ten.vercel.app';
-        const { data, error: err } = await supabase.auth.signUp({ email, password, options: { emailRedirectTo: redirectTo, data: { full_name: name, marketing_consent: consentData?.marketing, gdpr_consent: true, gdpr_date: new Date().toISOString() } } });
+        const { data, error: err } = await supabase.auth.signUp({
+          email, password,
+          options: {
+            emailRedirectTo: redirectTo,
+            data: { full_name: name, marketing_consent: consentData?.marketing, gdpr_consent: true, gdpr_date: new Date().toISOString() }
+          }
+        });
         if (err) throw err;
-        setMode('verify');
+        // Some Supabase configs auto-confirm — check if session exists immediately
+        if (data?.session) {
+          navigate('onboarding');
+        } else {
+          setMode('verify');
+        }
       } else if (mode === 'login') {
         const { data, error: err } = await supabase.auth.signInWithPassword({ email, password });
         if (err) throw err;
         const { data: profile } = await supabase.from('profiles').select('onboarding_complete').eq('id', data.user.id).single();
         navigate(profile?.onboarding_complete ? 'home' : 'onboarding');
       } else {
-        const { error: err } = await supabase.auth.resetPasswordForEmail(email);
+        const { error: err } = await supabase.auth.resetPasswordForEmail(email, { redirectTo });
         if (err) throw err;
         setMode('forgot_sent');
       }
     } catch (e) {
-      setError(e.message || 'Something went wrong. Please try again.');
+      setError(friendlyError(e));
     }
     setLoading(null);
   };
@@ -903,12 +935,16 @@ function AuthScreen({ navigate, consentData }) {
     setLoading(provider);
     setError('');
     try {
-      const { error: err } = await supabase.auth.signInWithOAuth({ provider, options: { redirectTo: window.location.origin } });
+      const { error: err } = await supabase.auth.signInWithOAuth({
+        provider,
+        options: { redirectTo, queryParams: provider === 'google' ? { access_type: 'offline', prompt: 'consent' } : undefined }
+      });
       if (err) throw err;
+      // OAuth opens a redirect — loading state stays until page reloads
     } catch (e) {
-      setError(e.message || 'OAuth sign-in failed.');
+      setError(friendlyError(e));
+      setLoading(null);
     }
-    setLoading(null);
   };
 
   // Verify email sent state
