@@ -192,7 +192,7 @@ function parseFood(text) {
   const WORD_QTY = {a:1,an:1,one:1,two:2,three:3,four:4,five:5,six:6,half:0.5,quarter:0.25,double:2,couple:2,large:1.4,big:1.4,small:0.65,medium:1,tiny:0.4,handful:0.5,few:3};
   const FILLERS = ['of','the','some','bit','piece','slice','slices','cup','cups','bowl','bowls','glass','glasses','serving','portion','scoop','tablespoon','tbsp','teaspoon','tsp','ml','grams','g','with','on'];
 
-  const chunks = text.toLowerCase().trim().split(/\s*(?:\band\b|,|\+|\bthen\b|\bplus\b)\s*/);
+  const chunks = text.toLowerCase().trim().split(/\s*(?:\band\b|,|\+|\bthen\b|\bplus\b|\bwith\b|\bon\b)\s*/);
   const results = [];
 
   for (let chunk of chunks) {

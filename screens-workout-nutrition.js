@@ -157,7 +157,7 @@ function WorkoutPlayerScreen({ navigate }) {
               </GlassCard>
             )}
 
-            <div style={{ marginTop:'auto' }}>
+            <div style={{ marginTop:'24px' }}>
               <PillButton onClick={startRest} style={{ width:'100%', padding:'16px', fontSize:'14px' }}>
                 {ex.rest > 0 ? `Complete set → Rest ${ex.rest}s` : 'Complete set →'}
               </PillButton>
