@@ -88,8 +88,9 @@
 // Replace SUPABASE_URL and SUPABASE_ANON_KEY once your project is created.
 // These are public/safe to expose in a frontend app.
 
-const SUPABASE_URL      = 'https://dnczvdrtywawkpiptkcs.supabase.co';
-const SUPABASE_ANON_KEY = 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6ImRuY3p2ZHJ0eXdhd2twaXB0a2NzIiwicm9sZSI6ImFub24iLCJpYXQiOjE3NzQ1MzI4NzksImV4cCI6MjA5MDEwODg3OX0.DYwBwLlraQaLEqgcYTU0RnwVW50Bz6PQv4MUc-crd4E';
+const SUPABASE_URL      = 'https://cttyprfieqydaiifncbu.supabase.co';
+const SUPABASE_ANON_KEY = 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6ImN0dHlwcmZpZXF5ZGFpaWZuY2J1Iiwicm9sZSI6ImFub24iLCJpYXQiOjE3ODI4MjE5OTYsImV4cCI6MjA5ODM5Nzk5Nn0.Xjem0AdLAILDlnpQ18IKz1tBlnMw29l6f1D00D3PN58';
+const ROSA_EDGE_URL     = 'https://cttyprfieqydaiifncbu.supabase.co/functions/v1';
 
 // Minimal Supabase client (no npm — uses the CDN JS bundle loaded in index.html)
 // Fully chainable stub so .from().select().eq().single() never throws even if unconfigured.
@@ -2230,6 +2231,143 @@ function getMealSlot() {
   return 'snack';
 }
 
+function FoodCameraButton({ onResult, disabled }) {
+  const fileRef = React.useRef(null);
+  const [loading, setLoading] = useState(false);
+
+  const handleFile = async (e) => {
+    const file = e.target.files[0];
+    if (!file) return;
+    setLoading(true);
+    try {
+      const base64 = await new Promise((res, rej) => {
+        const r = new FileReader();
+        r.onload = () => res(r.result.split(',')[1]);
+        r.onerror = rej;
+        r.readAsDataURL(file);
+      });
+      const resp = await fetch(`${ROSA_EDGE_URL}/analyze-image`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ image_base64: base64, media_type: file.type || 'image/jpeg', mode: 'food' }),
+      });
+      const data = await resp.json();
+      const items = Array.isArray(data.parsed) ? data.parsed : [];
+      if (items.length > 0) {
+        onResult(items.map((it, i) => ({ ...it, id: Date.now() + i, displayQty: 1, source: 'photo' })));
+      } else {
+        onResult([{ id: Date.now(), name: 'Meal from photo', kcal: 400, protein: 20, carbs: 40, fat: 12, emoji: '📸', displayQty: 1, source: 'photo' }]);
+      }
+    } catch (_) {
+      onResult([{ id: Date.now(), name: 'Meal from photo', kcal: 400, protein: 20, carbs: 40, fat: 12, emoji: '📸', displayQty: 1, source: 'photo' }]);
+    } finally {
+      setLoading(false);
+      e.target.value = '';
+    }
+  };
+
+  return (
+    <>
+      <input ref={fileRef} type="file" accept="image/*" capture="environment" onChange={handleFile} style={{ display:'none' }} />
+      <button onClick={() => fileRef.current?.click()} disabled={disabled || loading} title="Photo scan food"
+        style={{ width:'44px', height:'44px', borderRadius:'12px', background:'rgba(200,184,232,0.25)', border:'0.5px solid rgba(200,184,232,0.4)', display:'flex', alignItems:'center', justifyContent:'center', fontSize:'18px', cursor: disabled ? 'default' : 'pointer', flexShrink:0 }}>
+        {loading ? '⏳' : '📷'}
+      </button>
+    </>
+  );
+}
+
+function MenuScannerTab({ userGoal }) {
+  const fileRef = React.useRef(null);
+  const [state, setState] = useState('idle'); // idle | scanning | done | error
+  const [recs, setRecs] = useState([]);
+  const [preview, setPreview] = useState(null);
+
+  const handleFile = async (e) => {
+    const file = e.target.files[0];
+    if (!file) return;
+    setPreview(URL.createObjectURL(file));
+    setState('scanning');
+    try {
+      const base64 = await new Promise((res, rej) => {
+        const r = new FileReader();
+        r.onload = () => res(r.result.split(',')[1]);
+        r.onerror = rej;
+        r.readAsDataURL(file);
+      });
+      const resp = await fetch(`${ROSA_EDGE_URL}/analyze-image`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ image_base64: base64, media_type: file.type || 'image/jpeg', mode: 'menu', goals: userGoal || 'general health' }),
+      });
+      const data = await resp.json();
+      const list = data.parsed?.recommendations;
+      if (list?.length > 0) { setRecs(list); setState('done'); }
+      else setState('error');
+    } catch (_) { setState('error'); }
+    e.target.value = '';
+  };
+
+  const reset = () => { setState('idle'); setRecs([]); setPreview(null); };
+
+  return (
+    <div>
+      <GlassCard strong style={{ marginBottom:'16px', padding:'20px', textAlign:'center' }}>
+        <div style={{ fontSize:'36px', marginBottom:'8px' }}>🍽️</div>
+        <div style={{ fontFamily:'Gilda Display', fontSize:'18px', color:'#3A1848', marginBottom:'4px' }}>Menu Analyser</div>
+        <div style={{ fontFamily:'Outfit', fontSize:'12px', color:'rgba(152,120,184,0.7)', marginBottom:'16px' }}>
+          Take a photo of any menu — ROSA picks the best options for your goals
+        </div>
+        <input ref={fileRef} type="file" accept="image/*" capture="environment" onChange={handleFile} style={{ display:'none' }} />
+        <button onClick={() => { reset(); setTimeout(() => fileRef.current?.click(), 50); }}
+          disabled={state === 'scanning'}
+          style={{ padding:'14px 28px', borderRadius:'28px', background:'linear-gradient(135deg,#9878B8,#7858A0)', color:'#F2EEFB', border:'none', fontFamily:'Outfit', fontSize:'13px', fontWeight:600, cursor:'pointer', opacity: state==='scanning' ? 0.7 : 1 }}>
+          {state === 'scanning' ? '🌸 Reading menu…' : state === 'done' ? '📷 Scan another' : '📷 Scan menu'}
+        </button>
+      </GlassCard>
+
+      {preview && state === 'scanning' && (
+        <GlassCard style={{ marginBottom:'16px', overflow:'hidden', padding:0 }}>
+          <img src={preview} alt="menu" style={{ width:'100%', maxHeight:'180px', objectFit:'cover' }} />
+          <div style={{ padding:'12px', textAlign:'center', fontFamily:'Outfit', fontSize:'12px', color:'#9878B8' }}>
+            🌸 Matching items to your goals…
+          </div>
+        </GlassCard>
+      )}
+
+      {state === 'done' && recs.length > 0 && (
+        <div>
+          <div style={{ fontFamily:'Outfit', fontSize:'10px', fontWeight:600, textTransform:'uppercase', letterSpacing:'0.1em', color:'rgba(152,120,184,0.5)', marginBottom:'10px' }}>
+            Rosa's picks for your goal
+          </div>
+          {recs.map((r, i) => (
+            <GlassCard key={i} style={{ marginBottom:'10px', padding:'14px' }}>
+              <div style={{ display:'flex', justifyContent:'space-between', alignItems:'flex-start', marginBottom:'5px' }}>
+                <div style={{ fontFamily:'Outfit', fontSize:'14px', fontWeight:600, color:'#3A1848' }}>{r.emoji || '🍽️'} {r.name}</div>
+                <div style={{ fontFamily:'Outfit', fontSize:'13px', color:'#9878B8', fontWeight:600 }}>{r.kcal} kcal</div>
+              </div>
+              <div style={{ fontFamily:'Outfit', fontSize:'11px', color:'rgba(152,120,184,0.7)', marginBottom:'8px', lineHeight:1.4 }}>{r.why}</div>
+              <div style={{ display:'flex', gap:'12px' }}>
+                {[['P', r.protein, '#C8B8E8'], ['C', r.carbs, '#DDD5F5'], ['F', r.fat, '#F8D0E4']].map(([l, v, c]) => (
+                  <div key={l} style={{ fontFamily:'Outfit', fontSize:'10px', color:'rgba(152,120,184,0.6)' }}>
+                    <span style={{ fontWeight:700, color:c }}>{l}</span> {v}g
+                  </div>
+                ))}
+              </div>
+            </GlassCard>
+          ))}
+        </div>
+      )}
+
+      {state === 'error' && (
+        <GlassCard style={{ padding:'16px', textAlign:'center' }}>
+          <div style={{ fontFamily:'Outfit', fontSize:'13px', color:'#e05c7a' }}>Couldn't read the menu. Try better lighting or a clearer photo.</div>
+        </GlassCard>
+      )}
+    </div>
+  );
+}
+
 function NutritionScreen({ navigate }) {
   const [tab, setTab] = useState('log');
   const [dietFilter, setDietFilter] = useState('All');
@@ -2238,7 +2376,7 @@ function NutritionScreen({ navigate }) {
   const [searchQ, setSearchQ] = useState('');
   // AI logger state
   const [aiInput, setAiInput] = useState('');
-  const [aiState, setAiState] = useState('idle'); // idle | thinking | review
+  const [aiState, setAiState] = useState('idle'); // idle | thinking | review | photo
   const [parsedItems, setParsedItems] = useState([]);
   const [loggedItems, setLoggedItems] = useState(() =>
     MEALS_TODAY.map(m => ({ ...m, _id: m.id, slot: m.time < '11:00' ? 'breakfast' : m.time < '15:00' ? 'lunch' : 'snack', time: m.time }))
@@ -2266,19 +2404,35 @@ function NutritionScreen({ navigate }) {
     const now = new Date();
     const timeStr = `${String(now.getHours()).padStart(2,'0')}:${String(now.getMinutes()).padStart(2,'0')}`;
     const slot = getMealSlot();
+    const loggedDate = now.toISOString().split('T')[0];
     const newItems = parsedItems.map(item => ({ ...item, _id: Date.now()+Math.random(), slot, time: timeStr }));
     setLoggedItems(prev => [...prev, ...newItems]);
     setParsedItems([]);
     setAiInput('');
     setAiState('idle');
-    // Save to Supabase
     supabase.auth.getSession().then(({ data: { session } }) => {
       if (session) {
         newItems.forEach(item => {
-          supabase.from('rosa_nutrition_logs').insert({ user_id: session.user.id, meal_name: item.name, kcal: item.kcal, protein: item.protein, carbs: item.carbs, fat: item.fat, portions: item.displayQty || 1 });
+          supabase.from('rosa_nutrition_logs').insert({
+            user_id:    session.user.id,
+            meal_name:  item.name,
+            meal_type:  slot,
+            logged_date: loggedDate,
+            kcal:       item.kcal,
+            protein:    item.protein,
+            carbs:      item.carbs,
+            fat:        item.fat,
+            portions:   item.displayQty || 1,
+            source:     item.source || 'text_ai',
+          });
         });
       }
     });
+  };
+
+  const handlePhotoResult = (items) => {
+    setParsedItems(items);
+    setAiState('review');
   };
 
   const removeLogged = (id) => setLoggedItems(prev => prev.filter(m => m._id !== id));
@@ -2353,7 +2507,7 @@ function NutritionScreen({ navigate }) {
 
         {/* Tabs */}
         <div style={{ display:'flex', borderRadius:'24px', background:'rgba(255,255,255,0.4)', padding:'3px', marginBottom:'16px' }}>
-          {[{id:'log',label:'🤖 Log food'},{id:'kitchen',label:'ROSA Kitchen'}].map(t => (
+          {[{id:'log',label:'🤖 Log'},{id:'menu',label:'🍽️ Menu'},{id:'kitchen',label:'Kitchen'}].map(t => (
             <button key={t.id} onClick={() => setTab(t.id)}
               style={{ flex:1, padding:'9px', borderRadius:'20px', fontFamily:'Outfit', fontSize:'12px', fontWeight:500, cursor:'pointer', background: tab===t.id ? '#9878B8' : 'transparent', color: tab===t.id ? '#F2EEFB' : 'rgba(152,120,184,0.7)', border:'none', transition:'all 0.2s' }}>
               {t.label}
@@ -2361,11 +2515,14 @@ function NutritionScreen({ navigate }) {
           ))}
         </div>
 
-        {tab === 'log' ? (
+        {tab === 'log' && (
           <CalorieLogTab aiInput={aiInput} setAiInput={setAiInput} aiState={aiState} parsedItems={parsedItems}
             onSubmit={submitAI} onConfirm={confirmLog} onCancel={() => { setParsedItems([]); setAiState('idle'); }}
-            onUpdateQty={updateParsedQty} loggedItems={loggedItems} onRemove={removeLogged} />
-        ) : (
+            onUpdateQty={updateParsedQty} loggedItems={loggedItems} onRemove={removeLogged}
+            onPhotoResult={handlePhotoResult} />
+        )}
+        {tab === 'menu' && <MenuScannerTab userGoal="general health" />}
+        {tab === 'kitchen' && (
           <KitchenTab dietFilter={dietFilter} setDietFilter={setDietFilter} dietOpts={dietOpts} filtered={filtered}
             searchQ={searchQ} setSearchQ={setSearchQ} setSelectedMeal={setSelectedMeal} loggedMeals={kitchenLogged} />
         )}
@@ -2375,7 +2532,7 @@ function NutritionScreen({ navigate }) {
   );
 }
 
-function CalorieLogTab({ aiInput, setAiInput, aiState, parsedItems, onSubmit, onConfirm, onCancel, onUpdateQty, loggedItems, onRemove }) {
+function CalorieLogTab({ aiInput, setAiInput, aiState, parsedItems, onSubmit, onConfirm, onCancel, onUpdateQty, loggedItems, onRemove, onPhotoResult }) {
   const inputRef = useRef(null);
 
   const handleKey = (e) => { if (e.key === 'Enter' && !e.shiftKey) { e.preventDefault(); onSubmit(); } };
@@ -2400,11 +2557,14 @@ function CalorieLogTab({ aiInput, setAiInput, aiState, parsedItems, onSubmit, on
           placeholder="e.g. &quot;a bowl of porridge with blueberries and honey, then a coffee&quot;"
           disabled={aiState !== 'idle'}
           style={{ width:'100%', minHeight:'72px', padding:'10px 12px', borderRadius:'12px', border:'0.5px solid rgba(200,184,232,0.4)', background:'rgba(253,238,224,0.3)', fontFamily:'Outfit', fontSize:'13px', color:'#3A1848', resize:'none', outline:'none', boxSizing:'border-box', lineHeight:1.5 }} />
-        <button onClick={() => onSubmit()}
-          disabled={!aiInput.trim() || aiState !== 'idle'}
-          style={{ marginTop:'10px', width:'100%', padding:'12px', borderRadius:'24px', background: aiInput.trim() && aiState==='idle' ? 'linear-gradient(135deg,#9878B8,#7858A0)' : 'rgba(200,184,232,0.3)', color: aiInput.trim() && aiState==='idle' ? '#F2EEFB' : 'rgba(152,120,184,0.5)', border:'none', fontFamily:'Outfit', fontSize:'13px', fontWeight:500, cursor: aiInput.trim() ? 'pointer' : 'default', transition:'all 0.2s' }}>
-          {aiState === 'thinking' ? '🌸 Calculating…' : 'Analyse & log →'}
-        </button>
+        <div style={{ marginTop:'10px', display:'flex', gap:'8px' }}>
+          <button onClick={() => onSubmit()}
+            disabled={!aiInput.trim() || aiState !== 'idle'}
+            style={{ flex:1, padding:'12px', borderRadius:'24px', background: aiInput.trim() && aiState==='idle' ? 'linear-gradient(135deg,#9878B8,#7858A0)' : 'rgba(200,184,232,0.3)', color: aiInput.trim() && aiState==='idle' ? '#F2EEFB' : 'rgba(152,120,184,0.5)', border:'none', fontFamily:'Outfit', fontSize:'13px', fontWeight:500, cursor: aiInput.trim() ? 'pointer' : 'default', transition:'all 0.2s' }}>
+            {aiState === 'thinking' ? '🌸 Calculating…' : 'Analyse & log →'}
+          </button>
+          <FoodCameraButton onResult={onPhotoResult} disabled={aiState !== 'idle'} />
+        </div>
       </GlassCard>
 
       {/* Quick add chips */}

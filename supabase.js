@@ -2,8 +2,9 @@
 // Replace SUPABASE_URL and SUPABASE_ANON_KEY once your project is created.
 // These are public/safe to expose in a frontend app.
 
-const SUPABASE_URL      = 'https://dnczvdrtywawkpiptkcs.supabase.co';
-const SUPABASE_ANON_KEY = 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6ImRuY3p2ZHJ0eXdhd2twaXB0a2NzIiwicm9sZSI6ImFub24iLCJpYXQiOjE3NzQ1MzI4NzksImV4cCI6MjA5MDEwODg3OX0.DYwBwLlraQaLEqgcYTU0RnwVW50Bz6PQv4MUc-crd4E';
+const SUPABASE_URL      = 'https://cttyprfieqydaiifncbu.supabase.co';
+const SUPABASE_ANON_KEY = 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6ImN0dHlwcmZpZXF5ZGFpaWZuY2J1Iiwicm9sZSI6ImFub24iLCJpYXQiOjE3ODI4MjE5OTYsImV4cCI6MjA5ODM5Nzk5Nn0.Xjem0AdLAILDlnpQ18IKz1tBlnMw29l6f1D00D3PN58';
+const ROSA_EDGE_URL     = 'https://cttyprfieqydaiifncbu.supabase.co/functions/v1';
 
 // Minimal Supabase client (no npm — uses the CDN JS bundle loaded in index.html)
 // Fully chainable stub so .from().select().eq().single() never throws even if unconfigured.
