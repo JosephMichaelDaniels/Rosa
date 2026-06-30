@@ -1,3 +1,96 @@
+// ─── FEEDBACK BUTTON ──────────────────────────────────────────────────────────
+function FeedbackButton({ screen }) {
+  const [open, setOpen]     = useState(false);
+  const [rating, setRating] = useState(0);
+  const [hover, setHover]   = useState(0);
+  const [msg, setMsg]       = useState('');
+  const [sent, setSent]     = useState(false);
+  const [sending, setSending] = useState(false);
+
+  const submit = async () => {
+    if (!rating) return;
+    setSending(true);
+    try {
+      const { data: { session } } = await supabase.auth.getSession();
+      await supabase.from('rosa_feedback').insert({
+        user_id:  session?.user?.id || null,
+        screen,
+        rating,
+        message:  msg.trim() || null,
+        platform: /iPhone|iPad|iPod/.test(navigator.userAgent) ? 'ios' :
+                  /Android/.test(navigator.userAgent) ? 'android' : 'web',
+        app_version: '1.0.0-beta',
+      });
+    } catch (_) {}
+    setSending(false);
+    setSent(true);
+    setTimeout(() => { setOpen(false); setSent(false); setRating(0); setMsg(''); }, 2200);
+  };
+
+  const stars = ['😔','😐','🙂','😊','🤩'];
+
+  return (
+    <>
+      {open && (
+        <div style={{ position:'fixed', inset:0, background:'rgba(58,24,72,0.35)', backdropFilter:'blur(4px)', zIndex:9998, display:'flex', alignItems:'flex-end', justifyContent:'center' }}
+          onClick={e => { if (e.target === e.currentTarget) setOpen(false); }}>
+          <div style={{ width:'100%', maxWidth:'430px', background:'linear-gradient(160deg,#F2EEFB,#FDEEE0)', borderRadius:'28px 28px 0 0', padding:'28px 24px 48px', boxShadow:'0 -8px 48px rgba(58,24,72,0.18)' }}>
+            {sent ? (
+              <div style={{ textAlign:'center', padding:'24px 0' }}>
+                <div style={{ fontSize:'48px', marginBottom:'12px' }}>🌸</div>
+                <div style={{ fontFamily:'Gilda Display', fontSize:'22px', color:'#3A1848' }}>Thank you!</div>
+                <div style={{ fontFamily:'Outfit', fontSize:'13px', color:'rgba(152,120,184,0.7)', marginTop:'6px' }}>Your feedback helps shape Rosa.</div>
+              </div>
+            ) : (
+              <>
+                <div style={{ display:'flex', justifyContent:'space-between', alignItems:'center', marginBottom:'20px' }}>
+                  <div>
+                    <div style={{ fontFamily:'Gilda Display', fontSize:'22px', color:'#3A1848' }}>Share feedback</div>
+                    <div style={{ fontFamily:'Outfit', fontSize:'12px', color:'rgba(152,120,184,0.6)', marginTop:'2px' }}>Help us make Rosa better for you</div>
+                  </div>
+                  <button onClick={() => setOpen(false)} style={{ width:'32px', height:'32px', borderRadius:'50%', background:'rgba(200,184,232,0.3)', border:'none', fontSize:'16px', color:'rgba(152,120,184,0.7)', cursor:'pointer' }}>×</button>
+                </div>
+
+                {/* Star / emoji rating */}
+                <div style={{ marginBottom:'20px' }}>
+                  <div style={{ fontFamily:'Outfit', fontSize:'12px', fontWeight:500, color:'rgba(152,120,184,0.7)', marginBottom:'10px', textTransform:'uppercase', letterSpacing:'0.08em' }}>How's Rosa feeling?</div>
+                  <div style={{ display:'flex', justifyContent:'space-between' }}>
+                    {stars.map((s, i) => (
+                      <button key={i} onClick={() => setRating(i+1)}
+                        onMouseEnter={() => setHover(i+1)} onMouseLeave={() => setHover(0)}
+                        style={{ display:'flex', flexDirection:'column', alignItems:'center', gap:'4px', background:'none', border:'none', cursor:'pointer', padding:'6px 8px', borderRadius:'12px', background: (hover||rating) > i ? 'rgba(200,184,232,0.25)' : 'transparent', transition:'all 0.15s' }}>
+                        <span style={{ fontSize:'28px', filter: (hover||rating) > i ? 'none' : 'grayscale(0.7)', transition:'all 0.15s' }}>{s}</span>
+                        <span style={{ fontFamily:'Outfit', fontSize:'9px', color:'rgba(152,120,184,0.6)' }}>{['Poor','Okay','Good','Great','Love it'][i]}</span>
+                      </button>
+                    ))}
+                  </div>
+                </div>
+
+                {/* Text */}
+                <div style={{ marginBottom:'20px' }}>
+                  <div style={{ fontFamily:'Outfit', fontSize:'12px', fontWeight:500, color:'rgba(152,120,184,0.7)', marginBottom:'8px', textTransform:'uppercase', letterSpacing:'0.08em' }}>Tell us more (optional)</div>
+                  <textarea value={msg} onChange={e => setMsg(e.target.value)}
+                    placeholder="What's working well? What could be better?"
+                    style={{ width:'100%', minHeight:'80px', padding:'12px 14px', borderRadius:'14px', border:'0.5px solid rgba(200,184,232,0.4)', background:'rgba(255,255,255,0.6)', fontFamily:'Outfit', fontSize:'13px', color:'#3A1848', resize:'none', outline:'none', boxSizing:'border-box', lineHeight:1.5 }} />
+                </div>
+
+                <button onClick={submit} disabled={!rating || sending}
+                  style={{ width:'100%', padding:'15px', borderRadius:'24px', background: rating ? 'linear-gradient(135deg,#9878B8,#7858A0)' : 'rgba(200,184,232,0.3)', color: rating ? '#F2EEFB' : 'rgba(152,120,184,0.4)', border:'none', fontFamily:'Outfit', fontSize:'14px', fontWeight:500, cursor: rating ? 'pointer' : 'default', transition:'all 0.2s' }}>
+                  {sending ? 'Sending…' : 'Send feedback 🌸'}
+                </button>
+              </>
+            )}
+          </div>
+        </div>
+      )}
+      <button onClick={() => setOpen(true)}
+        style={{ position:'fixed', bottom:'148px', right:'16px', zIndex:9997, fontFamily:'Outfit', fontSize:'11px', fontWeight:600, background:'rgba(248,208,228,0.9)', color:'#3A1848', border:'none', borderRadius:'20px', padding:'7px 14px', cursor:'pointer', backdropFilter:'blur(8px)', boxShadow:'0 4px 16px rgba(0,0,0,0.12)', letterSpacing:'0.04em' }}>
+        💬 Feedback
+      </button>
+    </>
+  );
+}
+
 // ─── DEV TEST MODE BUTTON ─────────────────────────────────────────────────────
 const ALL_SCREENS = ['splash','terms','auth','onboarding','home','programmes','programme_detail','workout','nutrition','progress','profile'];
 
@@ -150,6 +243,7 @@ function App() {
   return (
     <>
       {screenEl}
+      <FeedbackButton screen={screen} />
       <DevTestButton screen={screen} navigate={navigate} />
     </>
   );
