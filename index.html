@@ -182,7 +182,7 @@ const USER = {
 };
 
 const PROGRAMMES = [
-  { id:'new_mum',     name:'New Mum Reset',        tag:'Recovery',   tagline:"Your body grew life. Now let's rebuild it.", weeks:12, level:'All levels',       colour:'#15B5A6', text:'#FFFFFF', active:true,  progress:0.38, photo:'photos/model-1.jpg' },
+  { id:'new_mum',     name:'New Mum Reset',        tag:'Recovery',   tagline:"Your body grew life. Now let's rebuild it.", weeks:12, level:'All levels',       colour:'#15B5A6', text:'#FFFFFF', active:false, progress:0,    photo:'photos/model-1.jpg' },
   { id:'pregnant',    name:'Stay Fit Pregnant',     tag:'Prenatal',   tagline:"You're growing life. You're not broken.",    weeks:0,  level:'Trimester-adj.',   colour:'#F26FA6', text:'#FFFFFF', active:false, progress:0,    photo:'photos/model-5.jpg' },
   { id:'booty',       name:'Booty Building',        tag:'Strength',   tagline:'Strength looks good on you.',                weeks:8,  level:'Beg → Adv',        colour:'#E04486', text:'#FFFFFF', active:false, progress:0,    photo:'photos/model-3.jpg' },
   { id:'core',        name:'Core & Pelvic Floor',   tag:'Foundation', tagline:'Your foundation. Your power.',               weeks:6,  level:'All levels',       colour:'#1A0D14', text:'#FFFFFF', active:false, progress:0,    photo:'photos/model-4.jpg' },
@@ -2137,9 +2137,10 @@ function HomeScreen({ navigate }) {
           </div>
         </GlassCard>
 
-        {/* Recent badge */}
-        {USER.earnedBadges.length > 0 && (() => {
-          const latest = BADGES.find(b => b.id === USER.earnedBadges[USER.earnedBadges.length - 1]);
+        {/* Recent badge — only real, earned badges */}
+        {(app?.badges || []).length > 0 && (() => {
+          const ids = app.badges;
+          const latest = BADGES.find(b => b.id === ids[ids.length - 1]);
           return latest ? (
             <>
               <SectionHeader>Latest achievement</SectionHeader>
@@ -2163,10 +2164,17 @@ function HomeScreen({ navigate }) {
 
 // ─── PROGRAMMES SCREEN ────────────────────────────────────────────────────────
 function ProgrammesScreen({ navigate }) {
+  const app = useAppData();
   const [filter, setFilter] = useState('All');
-  const filters = ['All','Active','Recovery','Strength','Prenatal'];
-  const filterMap = { All: () => true, Active: p => p.active, Recovery: p => p.tag === 'Recovery', Strength: p => p.tag === 'Strength' || p.tag === 'Build', Prenatal: p => p.tag === 'Prenatal' };
-  const visible = PROGRAMMES.filter(filterMap[filter] || (() => true));
+  const filters = ['All','Recovery','Strength','Prenatal'];
+  // "Active" = the programme THIS user actually chose during onboarding
+  const myId = app && app.profile && app.profile.programme_id;
+  const totalSessions = (app && app.sessionCount) || 0;
+  const weekTarget = (app && app.profile && app.profile.days_per_week) || 4;
+  const mine = myId ? PROGRAMMES.find(p => p.id === myId) : null;
+  const filterMap = { All: () => true, Recovery: p => p.tag === 'Recovery', Strength: p => p.tag === 'Strength' || p.tag === 'Build', Prenatal: p => p.tag === 'Prenatal' };
+  const others = PROGRAMMES.filter(p => p.id !== myId).filter(filterMap[filter] || (() => true));
+  const myProgress = mine ? Math.min(1, totalSessions / Math.max(1, (mine.weeks || 12) * weekTarget)) : 0;
 
   return (
     <AppBackground>
@@ -2178,8 +2186,18 @@ function ProgrammesScreen({ navigate }) {
           </div>
         </div>
 
+        {/* Your programme — the one chosen at onboarding */}
+        {mine && (
+          <div style={{ marginBottom:'22px' }}>
+            <SectionHeader>Your programme</SectionHeader>
+            <ProgrammeCard prog={mine} idx={0} navigate={navigate} isMine progress={myProgress} />
+          </div>
+        )}
+
+        <SectionHeader>{mine ? 'Explore other programmes' : 'All programmes'}</SectionHeader>
+
         {/* Filters */}
-        <div style={{ display:'flex', gap:'8px', overflowX:'auto', paddingBottom:'4px', marginBottom:'20px' }}>
+        <div style={{ display:'flex', gap:'8px', overflowX:'auto', paddingBottom:'4px', marginBottom:'16px' }}>
           {filters.map(f => (
             <button key={f} onClick={() => setFilter(f)}
               style={{ padding:'8px 16px', borderRadius:'24px', whiteSpace:'nowrap', fontFamily:'Inter', fontSize:'12px', fontWeight:500, cursor:'pointer', background: filter===f ? '#E04486' : 'rgba(255,255,255,0.5)', color: filter===f ? '#FFFFFF' : '#1A0D14', border: filter===f ? 'none' : '0.5px solid rgba(224,68,134,0.3)', flexShrink:0 }}>
@@ -2190,7 +2208,7 @@ function ProgrammesScreen({ navigate }) {
 
         {/* Programme cards */}
         <div style={{ display:'flex', flexDirection:'column', gap:'12px', paddingBottom:'20px' }}>
-          {visible.map((p, i) => (
+          {others.map((p, i) => (
             <ProgrammeCard key={p.id} prog={p} idx={i} navigate={navigate} />
           ))}
         </div>
@@ -2200,12 +2218,12 @@ function ProgrammesScreen({ navigate }) {
   );
 }
 
-function ProgrammeCard({ prog, idx, navigate }) {
+function ProgrammeCard({ prog, idx, navigate, isMine = false, progress = 0 }) {
   const c = prog.colour;
   return (
-    <div className="scaleIn" onClick={() => navigate('programme_detail', { prog })}
+    <div className="scaleIn" onClick={() => navigate('programme_detail', { prog, isMine })}
       style={{ animationDelay:`${idx*0.06}s`, position:'relative', borderRadius:'20px', overflow:'hidden', height:'156px', cursor:'pointer',
-        boxShadow: prog.active ? `0 12px 28px ${c}40` : '0 5px 18px rgba(0,0,0,0.09)' }}>
+        boxShadow: isMine ? `0 12px 28px ${c}40` : '0 5px 18px rgba(0,0,0,0.09)' }}>
 
       {/* Model photo (right) */}
       <div style={{ position:'absolute', right:0, top:0, bottom:0, width:'64%', backgroundImage:`url('${prog.photo}')`, backgroundSize:'cover', backgroundPosition:'center 14%' }} />
@@ -2214,7 +2232,7 @@ function ProgrammeCard({ prog, idx, navigate }) {
 
       {/* Content */}
       <div style={{ position:'relative', padding:'20px', height:'100%', display:'flex', flexDirection:'column', justifyContent:'center', maxWidth:'68%' }}>
-        {prog.active && (
+        {isMine && (
           <div style={{ alignSelf:'flex-start', padding:'3px 10px', borderRadius:'8px', background:'#FFFFFF', fontFamily:'Inter', fontSize:'9px', fontWeight:700, letterSpacing:'0.12em', color:c, marginBottom:'9px' }}>ACTIVE</div>
         )}
         <div style={{ fontFamily:'Playfair Display', fontSize:'23px', color:'#FFFFFF', lineHeight:1.12, marginBottom:'11px', textShadow:'0 1px 6px rgba(0,0,0,0.22)' }}>{prog.name}</div>
@@ -2229,10 +2247,10 @@ function ProgrammeCard({ prog, idx, navigate }) {
             {prog.level}
           </span>
         </div>
-        {prog.active && prog.progress > 0 && (
+        {isMine && progress > 0 && (
           <div style={{ marginTop:'12px', maxWidth:'170px' }}>
             <div style={{ height:'4px', borderRadius:'2px', background:'rgba(255,255,255,0.35)' }}>
-              <div style={{ height:'100%', width:`${prog.progress*100}%`, background:'#FFFFFF', borderRadius:'2px' }} />
+              <div style={{ height:'100%', width:`${progress*100}%`, background:'#FFFFFF', borderRadius:'2px' }} />
             </div>
           </div>
         )}
@@ -2248,9 +2266,14 @@ function ProgrammeCard({ prog, idx, navigate }) {
 
 // ─── PROGRAMME DETAIL ─────────────────────────────────────────────────────────
 function ProgrammeDetailScreen({ navigate, params }) {
+  const app = useAppData();
   const prog = params?.prog || PROGRAMMES[0];
   const phases = ['Restore','Strengthen','Transform'];
   const weeks = Array.from({length: prog.weeks || 12}, (_,i) => i+1);
+  // Only the user's OWN programme shows progress/current week
+  const isMine = !!(app && app.profile && app.profile.programme_id === prog.id);
+  const weekTarget = (app && app.profile && app.profile.days_per_week) || 4;
+  const myWeek = isMine ? Math.floor(((app && app.sessionCount) || 0) / weekTarget) + 1 : 0;
 
   return (
     <AppBackground>
@@ -2327,8 +2350,8 @@ function ProgrammeDetailScreen({ navigate, params }) {
           <SectionHeader>Sessions</SectionHeader>
           <div style={{ display:'grid', gridTemplateColumns:'1fr 1fr', gap:'8px', marginBottom:'20px' }}>
             {weeks.slice(0, 12).map(w => {
-              const done = w <= (USER.programmeWeek - 1);
-              const current = w === USER.programmeWeek;
+              const done = isMine && w < myWeek;
+              const current = isMine && w === myWeek;
               return (
                 <GlassCard key={w} strong={current} accent={current}
                   onClick={() => current && navigate('workout')}
@@ -2345,8 +2368,21 @@ function ProgrammeDetailScreen({ navigate, params }) {
             })}
           </div>
 
-          <PillButton variant="teal" style={{ width:'100%', padding:'14px' }} onClick={() => navigate('workout')}>
-            {prog.active ? 'Continue programme →' : 'Start this programme →'}
+          <PillButton variant="teal" style={{ width:'100%', padding:'14px' }} onClick={async () => {
+            if (!isMine) {
+              // Switching programme — persist the choice so every screen follows it
+              const { data: { session } } = await supabase.auth.getSession();
+              if (session) {
+                const { error } = await supabase.from('rosa_users')
+                  .update({ programme_id: prog.id, updated_at: new Date().toISOString() })
+                  .eq('id', session.user.id);
+                if (error) console.error('[switch programme]', error.message);
+                else if (app && app.refresh) app.refresh();
+              }
+            }
+            navigate('workout');
+          }}>
+            {isMine ? 'Continue programme' : 'Start this programme'}
           </PillButton>
         </div>
       </div>
@@ -3140,9 +3176,22 @@ function MealDetail({ meal, onBack, onLog, logged }) {
 // === screens-progress-profile.js ===
 // ─── PROGRESS SCREEN ──────────────────────────────────────────────────────────
 function ProgressScreen({ navigate }) {
-  const maxSessions = Math.max(...WEEKLY_DATA.map(d => d.sessions));
-  const totalSessions = WEEKLY_DATA.reduce((a, d) => a + d.sessions, 0);
-  const avgSessions = (totalSessions / WEEKLY_DATA.length).toFixed(1);
+  const app = useAppData();
+  // Everything below is the signed-in user's REAL activity — a new account sees zeros.
+  const buckets = (app && app.buckets) || weeklyBuckets([], 6);
+  const totalSessions = (app && app.sessionCount) || 0;
+  const maxSessions = buckets.reduce((m, d) => Math.max(m, d.sessions), 0);
+  const avgSessions = (buckets.reduce((a, d) => a + d.sessions, 0) / buckets.length).toFixed(1);
+  const streak = (app && app.streak) || 0;
+  const earnedBadges = (app && app.badges) || [];
+  const doneThisWeek = (app && app.sessionsThisWeek) || 0;
+  const weekTarget = (app && app.profile && app.profile.days_per_week) || 4;
+  const remaining = Math.max(0, weekTarget - doneThisWeek);
+  const activeProg = (app && app.profile && app.profile.programme_id)
+    ? PROGRAMMES.find(p => p.id === app.profile.programme_id) : null;
+  const progWeeks = activeProg && activeProg.weeks ? activeProg.weeks : 12;
+  const progPct = Math.min(1, totalSessions / Math.max(1, progWeeks * weekTarget));
+  const progWeek = Math.min(progWeeks, Math.floor(totalSessions / weekTarget) + 1);
 
   return (
     <AppBackground>
@@ -3165,43 +3214,57 @@ function ProgressScreen({ navigate }) {
         {/* Bar chart */}
         <SectionHeader>Weekly sessions</SectionHeader>
         <GlassCard style={{ marginBottom:'16px', padding:'16px' }}>
-          <MiniBarChart data={WEEKLY_DATA} />
+          <MiniBarChart data={buckets} />
         </GlassCard>
 
-        {/* Programme progress */}
-        <SectionHeader>Active programme</SectionHeader>
-        <GlassCard amethyst style={{ marginBottom:'16px' }}>
-          <div style={{ display:'flex', justifyContent:'space-between', alignItems:'flex-start', marginBottom:'12px' }}>
-            <div>
-              <div style={{ fontFamily:'Playfair Display', fontSize:'20px', color:'#FFFFFF', marginBottom:'4px' }}>{USER.programme}</div>
-              <div style={{ fontFamily:'Inter', fontSize:'12px', color:'rgba(255,255,255,0.7)' }}>Week {USER.programmeWeek} of 12</div>
-            </div>
-            <div style={{ textAlign:'right' }}>
-              <div style={{ fontFamily:'Playfair Display', fontSize:'28px', color:'#FFFFFF' }}>{Math.round(USER.programmeProgress * 100)}%</div>
-              <div style={{ fontFamily:'Inter', fontSize:'10px', color:'rgba(255,255,255,0.6)' }}>complete</div>
-            </div>
-          </div>
-          <div style={{ height:'6px', borderRadius:'3px', background:'rgba(255,255,255,0.2)', overflow:'hidden' }}>
-            <div style={{ height:'100%', width:`${USER.programmeProgress * 100}%`, background:'rgba(255,255,255,0.75)', borderRadius:'3px', transition:'width 1s ease' }} />
-          </div>
-          <div style={{ display:'flex', justifyContent:'space-between', marginTop:'8px' }}>
-            <span style={{ fontFamily:'Inter', fontSize:'10px', color:'rgba(255,255,255,0.55)' }}>Phase 1: Restore ✓</span>
-            <span style={{ fontFamily:'Inter', fontSize:'10px', color:'rgba(255,255,255,0.55)' }}>Phase 2: Strengthen →</span>
-          </div>
-        </GlassCard>
+        {/* Programme progress — only once a programme is actually chosen */}
+        {activeProg ? (
+          <>
+            <SectionHeader>Active programme</SectionHeader>
+            <GlassCard amethyst style={{ marginBottom:'16px' }}>
+              <div style={{ display:'flex', justifyContent:'space-between', alignItems:'flex-start', marginBottom:'12px' }}>
+                <div>
+                  <div style={{ fontFamily:'Playfair Display', fontSize:'20px', color:'#FFFFFF', marginBottom:'4px' }}>{activeProg.name}</div>
+                  <div style={{ fontFamily:'Inter', fontSize:'12px', color:'rgba(255,255,255,0.7)' }}>
+                    {totalSessions === 0 ? 'Not started yet' : `Week ${progWeek} of ${progWeeks}`}
+                  </div>
+                </div>
+                <div style={{ textAlign:'right' }}>
+                  <div style={{ fontFamily:'Playfair Display', fontSize:'28px', color:'#FFFFFF' }}>{Math.round(progPct * 100)}%</div>
+                  <div style={{ fontFamily:'Inter', fontSize:'10px', color:'rgba(255,255,255,0.6)' }}>complete</div>
+                </div>
+              </div>
+              <div style={{ height:'6px', borderRadius:'3px', background:'rgba(255,255,255,0.2)', overflow:'hidden' }}>
+                <div style={{ height:'100%', width:`${progPct * 100}%`, background:'rgba(255,255,255,0.75)', borderRadius:'3px', transition:'width 1s ease' }} />
+              </div>
+              <div style={{ marginTop:'8px', fontFamily:'Inter', fontSize:'10px', color:'rgba(255,255,255,0.55)' }}>
+                {totalSessions} session{totalSessions === 1 ? '' : 's'} logged · {weekTarget}/week target
+              </div>
+            </GlassCard>
+          </>
+        ) : (
+          <>
+            <SectionHeader>Active programme</SectionHeader>
+            <GlassCard style={{ marginBottom:'16px', textAlign:'center', padding:'22px 18px' }}>
+              <div style={{ fontFamily:'Playfair Display', fontSize:'16px', color:'#1A0D14', marginBottom:'4px' }}>No programme yet</div>
+              <div style={{ fontFamily:'Inter', fontSize:'12px', color:'rgba(26,13,20,0.55)', marginBottom:'12px' }}>Pick one and your progress will build here.</div>
+              <PillButton variant="teal" small onClick={() => navigate('programmes')}>Browse programmes</PillButton>
+            </GlassCard>
+          </>
+        )}
 
         {/* Progress ring */}
         <SectionHeader>This week</SectionHeader>
         <GlassCard style={{ display:'flex', alignItems:'center', gap:'16px', marginBottom:'16px' }}>
-          <ProgressRing completed={USER.sessionsThisWeek} total={USER.sessionsTarget} size={88} />
+          <ProgressRing completed={doneThisWeek} total={weekTarget} size={88} />
           <div>
             <div style={{ fontFamily:'Playfair Display', fontSize:'22px', color:'#1A0D14', marginBottom:'4px' }}>
-              {USER.sessionsThisWeek === USER.sessionsTarget ? 'Week complete!' : `${USER.sessionsTarget - USER.sessionsThisWeek} session${USER.sessionsTarget - USER.sessionsThisWeek !== 1 ? 's' : ''} to go`}
+              {doneThisWeek === 0 ? 'Let’s begin' : remaining === 0 ? 'Week complete!' : `${remaining} session${remaining !== 1 ? 's' : ''} to go`}
             </div>
             <div style={{ fontFamily:'Inter', fontSize:'13px', color:'rgba(224,68,134,0.7)', lineHeight:1.5 }}>
-              {USER.sessionsThisWeek} of {USER.sessionsTarget} sessions done this week
+              {doneThisWeek} of {weekTarget} sessions done this week
             </div>
-            {USER.sessionsThisWeek > 0 && (
+            {doneThisWeek > 0 && (
               <div style={{ fontFamily:'Inter', fontSize:'12px', color:'rgba(224,68,134,0.55)', fontStyle:'italic', marginTop:'6px' }}>
                 "You're stronger than yesterday."
               </div>
@@ -3214,12 +3277,12 @@ function ProgressScreen({ navigate }) {
         <GlassCard style={{ marginBottom:'16px' }}>
           <div style={{ display:'grid', gridTemplateColumns:'repeat(4,1fr)', gap:'10px', marginBottom:'12px' }}>
             {BADGES.slice(0, 8).map(b => (
-              <BadgeItem key={b.id} badge={b} earned={USER.earnedBadges.includes(b.id)} />
+              <BadgeItem key={b.id} badge={b} earned={earnedBadges.includes(b.id)} />
             ))}
           </div>
           <div style={{ borderTop:'0.5px solid rgba(224,68,134,0.2)', paddingTop:'10px', textAlign:'center' }}>
             <span style={{ fontFamily:'Inter', fontSize:'12px', color:'rgba(224,68,134,0.7)' }}>
-              {USER.earnedBadges.length} of {BADGES.length} badges earned
+              {earnedBadges.length === 0 ? 'Complete your first session to earn your first badge' : `${earnedBadges.length} of ${BADGES.length} badges earned`}
             </span>
           </div>
         </GlassCard>
@@ -3227,9 +3290,9 @@ function ProgressScreen({ navigate }) {
         {/* Streak milestones */}
         <SectionHeader>Streak milestones</SectionHeader>
         <div style={{ display:'flex', flexDirection:'column', gap:'8px', marginBottom:'20px' }}>
-          {[{days:7,msg:"One week straight. SEZE would be proud.",done:USER.streak>=7},
-            {days:30,msg:"A month of showing up. You're building something real.",done:USER.streak>=30},
-            {days:90,msg:"90 days. You didn't just break the mould — you proved it was always a lie.",done:USER.streak>=90}].map(m => (
+          {[{days:7,msg:"One week straight. SEZE would be proud.",done:streak>=7},
+            {days:30,msg:"A month of showing up. You're building something real.",done:streak>=30},
+            {days:90,msg:"90 days. You didn't just break the mould — you proved it was always a lie.",done:streak>=90}].map(m => (
             <GlassCard key={m.days} style={{ display:'flex', alignItems:'center', gap:'12px', opacity: m.done ? 1 : 0.55 }}>
               <div style={{ width:'36px', height:'36px', borderRadius:'50%', background: m.done ? '#E04486' : 'rgba(255,255,255,0.5)', display:'flex', alignItems:'center', justifyContent:'center', fontFamily:'Inter', fontSize:'11px', fontWeight:500, color: m.done ? '#FFFFFF' : 'rgba(224,68,134,0.6)', flexShrink:0 }}>{m.days}d</div>
               <div style={{ flex:1 }}>
@@ -3250,8 +3313,12 @@ function ProfileScreen({ navigate }) {
   const app = useAppData();
   const fullName = (app && app.profile && app.profile.full_name) || (app && app.firstName) || USER.name;
   const initials = fullName.slice(0, 2).toUpperCase();
-  const streak = (app && app.streak != null) ? app.streak : USER.streak;
-  const sessions = (app && app.sessionCount != null) ? app.sessionCount : WEEKLY_DATA.reduce((a,d)=>a+d.sessions,0);
+  const streak = (app && app.streak) || 0;
+  const sessions = (app && app.sessionCount) || 0;
+  const earnedBadges = (app && app.badges) || [];
+  const myProg = (app && app.profile && app.profile.programme_id) ? PROGRAMMES.find(p => p.id === app.profile.programme_id) : null;
+  const weekTarget = (app && app.profile && app.profile.days_per_week) || 4;
+  const progPct = myProg ? Math.min(1, sessions / Math.max(1, (myProg.weeks || 12) * weekTarget)) : 0;
   const [settingsOpen, setSettingsOpen] = useState(false);
   // Admins (rosa_admins allowlist) get a Review feedback entry — no dev mode needed
   const [isAdmin, setIsAdmin] = useState(false);
@@ -3287,8 +3354,8 @@ function ProfileScreen({ navigate }) {
           <div style={{ display:'grid', gridTemplateColumns:'1fr 1fr', gap:'10px', marginBottom:'20px' }}>
             {[{label:'Day streak',    value:streak,                        icon:'flame'},
               {label:'Sessions',      value:sessions,                      icon:'dumbbell'},
-              {label:'Badges',        value:USER.earnedBadges.length,      icon:'trophy'},
-              {label:'Programme',     value:`${Math.round(USER.programmeProgress*100)}%`, icon:'bolt'}].map(s => (
+              {label:'Badges',        value:earnedBadges.length,           icon:'trophy'},
+              {label:'Programme',     value:`${Math.round(progPct*100)}%`, icon:'bolt'}].map(s => (
               <GlassCard key={s.label} strong style={{ display:'flex', alignItems:'center', gap:'12px' }}>
                 <div style={{ width:'40px', height:'40px', borderRadius:'12px', background:'rgba(224,68,134,0.1)', display:'flex', alignItems:'center', justifyContent:'center', flexShrink:0 }}><Ic name={s.icon} size={22} color="#E04486" stroke={1.7} /></div>
                 <div>
@@ -3304,12 +3371,12 @@ function ProfileScreen({ navigate }) {
           <GlassCard style={{ marginBottom:'16px', padding:'16px' }}>
             <div style={{ display:'grid', gridTemplateColumns:'repeat(4,1fr)', gap:'12px' }}>
               {BADGES.map(b => (
-                <BadgeItem key={b.id} badge={b} earned={USER.earnedBadges.includes(b.id)} />
+                <BadgeItem key={b.id} badge={b} earned={earnedBadges.includes(b.id)} />
               ))}
             </div>
             <div style={{ marginTop:'14px', paddingTop:'12px', borderTop:'0.5px solid rgba(224,68,134,0.2)' }}>
               <div style={{ fontFamily:'Inter', fontSize:'12px', color:'rgba(224,68,134,0.65)', textAlign:'center' }}>
-                {USER.earnedBadges.length} earned · {BADGES.length - USER.earnedBadges.length} remaining
+                {earnedBadges.length} earned · {BADGES.length - earnedBadges.length} remaining
               </div>
             </div>
           </GlassCard>
@@ -3682,6 +3749,30 @@ async function getProfileRoute(session) {
 const AppDataCtx = React.createContext(null);
 const useAppData = () => React.useContext(AppDataCtx);
 
+// Bucket real session dates into the last n calendar weeks (Mon-start) for the chart
+function weeklyBuckets(dates, n = 6) {
+  const startOfWeek = (d) => { const x = new Date(d); const day = (x.getDay() + 6) % 7; x.setHours(0,0,0,0); x.setDate(x.getDate() - day); return x; };
+  const curStart = startOfWeek(new Date());
+  const out = [];
+  for (let i = n - 1; i >= 0; i--) {
+    const s = new Date(curStart); s.setDate(s.getDate() - i * 7);
+    const e = new Date(s); e.setDate(e.getDate() + 7);
+    const count = (dates || []).filter(d => { const t = new Date(d); return t >= s && t < e; }).length;
+    out.push({ week: `Wk ${n - i}`, sessions: count });
+  }
+  return out;
+}
+// Badges are earned from real activity only — never pre-awarded
+function computeEarnedBadges({ sessionCount = 0, streak = 0, nutritionDays = 0, buckets = [] }) {
+  const out = [];
+  if (sessionCount >= 1) out.push('first_workout');
+  if (streak >= 7) out.push('7_day_streak');
+  if (streak >= 30) out.push('30_days');
+  if (streak >= 90) out.push('unstoppable');
+  if (nutritionDays >= 7) out.push('nutrition_week');
+  if (buckets.filter(b => b.sessions >= 4).length >= 4) out.push('consistent');
+  return out;
+}
 function computeStreak(isoDates) {
   const days = new Set((isoDates || []).map(d => new Date(d).toISOString().split('T')[0]));
   if (days.size === 0) return 0;
@@ -3701,10 +3792,12 @@ async function loadUserData() {
   if (!session) return null;
   const uid = session.user.id;
   const today = new Date().toISOString().split('T')[0];
-  const [pRes, mRes, sRes] = await Promise.all([
+  const [pRes, mRes, sRes, bRes, nRes] = await Promise.all([
     supabase.from('rosa_users').select('*').eq('id', uid).maybeSingle(),
     supabase.from('rosa_nutrition_logs').select('kcal,protein,carbs,fat,meal_name,meal_type,portions,logged_at').eq('user_id', uid).eq('logged_date', today).order('logged_at', { ascending: true }),
-    supabase.from('rosa_sessions').select('completed_at').eq('user_id', uid).order('completed_at', { ascending: false }).limit(90),
+    supabase.from('rosa_sessions').select('completed_at,programme_id').eq('user_id', uid).order('completed_at', { ascending: false }).limit(200),
+    supabase.from('rosa_badges').select('badge_id').eq('user_id', uid),
+    supabase.from('rosa_nutrition_logs').select('logged_date').eq('user_id', uid),
   ]);
   const meals = mRes.data || [];
   const totals = meals.reduce((a, m) => ({
@@ -3712,13 +3805,28 @@ async function loadUserData() {
     carbs: a.carbs + Number(m.carbs || 0), fat: a.fat + Number(m.fat || 0),
   }), { kcal: 0, protein: 0, carbs: 0, fat: 0 });
   const sessions = sRes.data || [];
+  const sessionDates = sessions.map(s => s.completed_at);
+  const buckets = weeklyBuckets(sessionDates, 6);
+  const nutritionDays = new Set((nRes.data || []).map(r => r.logged_date)).size;
+  const streak = computeStreak(sessionDates);
+  const stored = (bRes.data || []).map(b => b.badge_id);
+  const earned = computeEarnedBadges({ sessionCount: sessions.length, streak, nutritionDays, buckets });
+  // Persist any newly-earned badges (never pre-award)
+  const missing = earned.filter(id => !stored.includes(id));
+  if (missing.length) {
+    supabase.from('rosa_badges').insert(missing.map(id => ({ user_id: uid, badge_id: id })))
+      .then(({ error }) => { if (error) console.error('[badges]', error.message); });
+  }
   return {
     profile: pRes.data || null,
     email: session.user.email,
     firstName: (pRes.data?.full_name || session.user.email || 'there').split(' ')[0].split('@')[0],
     meals, todayTotals: totals,
     sessionCount: sessions.length,
-    streak: computeStreak(sessions.map(s => s.completed_at)),
+    sessionDates, buckets, nutritionDays,
+    sessionsThisWeek: buckets.length ? buckets[buckets.length - 1].sessions : 0,
+    badges: Array.from(new Set([...stored, ...earned])),
+    streak,
   };
 }
 
