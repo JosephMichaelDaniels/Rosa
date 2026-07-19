@@ -1,0 +1,1043 @@
+{
+  "summary": "Consolidated 120 raw findings from 7 personas (Founder/Product, Product Designer, React Engineer, Backend Engineer, Nutritionist, QA Engineer, Security Engineer) into 71 deduplicated, prioritized findings. The dominant theme is a systemic persistence failure: the app reads/writes a non-existent 'profiles' table (real table is rosa_users), so login routing, onboarding save, computed programme+macro targets, workouts, badges, and quick-track all silently fail \u2014 meaning no real user ever reaches a personalized state and every screen falls back to hardcoded mock 'Sarah' / 1800 kcal data. Layered on top are two safety-critical clinical gaps (every life stage gets the same 15-20kg loaded lower-body session with no clearance gate; calorie deficits can be prescribed to pregnant/breastfeeding users with no floor), a critical security hole (a SECURITY DEFINER view leaks every user's nutrition data to anonymous callers), and a large tail of auth-flow bugs, missing account controls (no sign-out, dead settings rows), unpersisted nutrition logging, nutrition-engine inaccuracies, and design/accessibility issues. Note: per stated product decisions, deferred-AI copy, Meta/Apple 'coming soon', and the OFF/USDA/fast-food data plan are treated as known/intended, not flagged as gaps. Severity counts: 9 critical, 21 high, 25 medium, 16 low.",
+  "counts": {
+    "critical": 9,
+    "high": 21,
+    "medium": 25,
+    "low": 16
+  },
+  "register": [
+    {
+      "id": "BE-01",
+      "title": "All profile reads target non-existent 'profiles' table \u2014 login and app-boot routing silently fail",
+      "area": "backend",
+      "severity": "critical",
+      "location": "AuthScreen.handleEmail line 1035; getProfileRoute lines 3246-3253 (App useEffect 3273-3296); schema comment 157-163",
+      "problem": "Login and session-restore both run supabase.from('profiles').select('onboarding_complete'). The 'profiles' table does not exist in project cttyprfieqydaiifncbu (real table is rosa_users). The real client does NOT throw for a bad relation \u2014 it returns {data:null,error} \u2014 and the code only destructures data (never checks error), so the error is swallowed. getProfileRoute's try/catch never fires; login sees profile?.onboarding_complete === undefined.",
+      "impact": "onboarding_complete is never actually read. Returning, fully-onboarded users are pushed back into the 7-step onboarding on every login and every relaunch; there is no code path by which a real authenticated user reaches home with their own data.",
+      "fix": "Point all three references at rosa_users using .maybeSingle() (so a missing row yields data:null not a throw): supabase.from('rosa_users').select('onboarding_complete').eq('id', data.user.id).maybeSingle(). Check the error branch explicitly and return 'home' only when onboarding_complete === true. Unify login and getProfileRoute on one helper. Update the schema comment block to name rosa_users.",
+      "personas": [
+        "React Engineer",
+        "Backend Engineer",
+        "QA Engineer",
+        "Security Engineer"
+      ],
+      "is_broken_function": true
+    },
+    {
+      "id": "BE-02",
+      "title": "Onboarding write targets non-existent table with non-existent columns \u2014 all onboarding data is discarded",
+      "area": "onboarding",
+      "severity": "critical",
+      "location": "OnboardingScreen.next() final step, lines 1416-1429",
+      "problem": "Final step fires supabase.from('profiles').update({ onboarding_complete, life_stage, goals, diet_type, allergies, height_cm, weight_kg, body_type }) \u2014 fire-and-forget, no await, no error handling. Table 'profiles' doesn't exist; and on rosa_users only onboarding_complete and height_cm exist (life_stage/goals/diet_type/allergies/weight_kg/body_type are not columns; real columns include goal enum, starting_weight_kg, dietary_preference, programme_id, tdee_kcal, target_*). It is also an UPDATE, so even against the right table it matches zero rows (silent no-op).",
+      "impact": "100% of onboarding answers plus the computed programme match and macros are silently thrown away. Home/Nutrition then fall back to hardcoded mock USER data. Onboarding is purely cosmetic.",
+      "fix": "Upsert into rosa_users keyed on id with real columns: onboarding_complete:true, height_cm, starting_weight_kg (converted from imperial if needed), goal (mapped to the enum via a mapGoal()), dietary_preference, programme_id and target_kcal/protein/carbs/fat/tdee_kcal from computeMatrix. Await and surface errors. Use upsert (not update) so a missing row is created. If life_stage/goals[]/allergies/body_type must be kept, ALTER TABLE to add them.",
+      "personas": [
+        "React Engineer",
+        "Backend Engineer",
+        "QA Engineer",
+        "Security Engineer"
+      ],
+      "is_broken_function": true
+    },
+    {
+      "id": "BE-03",
+      "title": "No rosa_users row is ever created at signup (no confirmed trigger, and app UPDATEs instead of upserting)",
+      "area": "auth",
+      "severity": "critical",
+      "location": "Signup lines 1017-1031; onboarding persistence line 1418 (UPDATE)",
+      "problem": "signUp only creates the auth.users row; full_name/consent land in raw_user_meta_data, not any app table. No on-insert trigger to create the matching rosa_users row is confirmed, and the onboarding write is an UPDATE (matches zero rows). RLS policies must also be confirmed. (Security audit later confirmed a handle_new_user trigger DOES exist \u2014 see SEC-04 \u2014 but it must be verified live and hardened.)",
+      "impact": "If the trigger is absent, every new user has an auth account but no profile row; all profile reads return null forever and onboarding_complete can never be set, permanently trapping users in onboarding.",
+      "fix": "Confirm/add a SECURITY DEFINER signup trigger (handle_new_rosa_user) that inserts rosa_users(id, full_name from raw_user_meta_data, onboarding_complete:false) ON CONFLICT DO NOTHING, plus AFTER INSERT ON auth.users trigger. As belt-and-braces, change the onboarding write to upsert({id, ...}). Confirm SELECT/INSERT/UPDATE RLS policies scoped to auth.uid()=id.",
+      "personas": [
+        "Backend Engineer",
+        "QA Engineer"
+      ],
+      "is_broken_function": true
+    },
+    {
+      "id": "NU-01",
+      "title": "Computed programme and macro targets are never persisted \u2014 every user is coached against a hardcoded 1800 kcal",
+      "area": "nutrition",
+      "severity": "critical",
+      "location": "computeMatrix return line 478 (tdee computed then dropped); onboarding write 1418; USER.macros line 179; NutritionScreen targets line 2492",
+      "problem": "computeMatrix produces programme, tdee, kcal, protein, carbs, fat but returns only {primary,secondary,reason,kcal,protein,carbs,fat} (tdee dropped) and none of it is written anywhere. programme_id/tdee_kcal/target_kcal/target_protein_g/carbs_g/fat_g/activity_level stay null. Home and Nutrition read the static USER.macros (kcalTarget 1800, protein 125).",
+      "impact": "The entire TDEE/macro engine is cosmetic \u2014 a 50kg fat-loss user and a 90kg muscle-gain user get identical 1800 kcal/125g guidance. Every calorie ring, remaining-kcal figure and macro coaching is wrong for essentially everyone.",
+      "fix": "Add tdee to computeMatrix's return; persist programme_id=matrix.primary.id and target_* / tdee_kcal / activity_level into rosa_users on onboarding completion (BE-02); drive NutritionScreen and Home targets from the loaded rosa_users row instead of USER.macros.",
+      "personas": [
+        "Founder/Product (Rosa)",
+        "Backend Engineer",
+        "Nutritionist",
+        "QA Engineer"
+      ],
+      "is_broken_function": true
+    },
+    {
+      "id": "NU-02",
+      "title": "Fat-loss calorie deficit can be applied to pregnant and breastfeeding users with no safety guardrail or lactation add-on",
+      "area": "nutrition",
+      "severity": "critical",
+      "location": "computeMatrix macro calc, lines 463-470",
+      "problem": "kcal subtracts a flat -300 whenever goals includes 'lose_fat', independent of lifeStage. A 'pregnant' or 'new_baby' (breastfeeding) user carrying a lose_fat goal receives a deficit, and the logic adds nothing for these states (pregnancy needs roughly +340/+450 kcal T2/T3; exclusive breastfeeding roughly +330-500). Onboarding never asks DOB or a breastfeeding flag. Copy promises to keep mother/baby safe while delivering the opposite.",
+      "impact": "Prescribing a deficit (or even maintenance) to a pregnant or lactating woman is a genuine clinical safety issue \u2014 maternal nutrient depletion, reduced milk supply, inadequate fetal growth. This is the highest-liability nutrition defect and contradicts the medically-aware mission.",
+      "fix": "Gate the deficit on life stage: never allow a deficit for pregnant/new_baby regardless of goal. Capture trimester/breastfeeding flag; force >= maintenance and add a trimester/lactation surplus. Enforce a raised kcal floor for these stages and surface a 'clear pregnancy/lactation nutrition with your GP/dietitian' note.",
+      "personas": [
+        "Founder/Product (Rosa)",
+        "Nutritionist"
+      ],
+      "is_broken_function": true
+    },
+    {
+      "id": "NU-03",
+      "title": "No minimum-calorie floor \u2014 targets can drop below the safe ~1200 kcal threshold",
+      "area": "nutrition",
+      "severity": "critical",
+      "location": "computeMatrix, lines 466-470",
+      "problem": "kcal = tdee + deficit with no lower clamp. A smaller woman (e.g. 55kg/160cm, low activity \u2192 TDEE ~1517, -300 = ~1217) already sits near the floor; lighter/shorter users drop below 1200 kcal, the accepted minimum for adult women outside clinical supervision.",
+      "impact": "Users can be handed sub-1200 kcal targets risking nutrient inadequacy, muscle loss, metabolic adaptation and disordered-eating patterns \u2014 contradicting the brand's 'sustainable, not punishing' positioning.",
+      "fix": "Add kcal = Math.max(1200, tdee + deficit) for general users and a higher floor (>= TDEE, typically 1800+) for pregnancy/lactation. Cap the deficit at ~20% of TDEE rather than a flat -300 so it scales with body size.",
+      "personas": [
+        "Nutritionist"
+      ],
+      "is_broken_function": false
+    },
+    {
+      "id": "SAF-01",
+      "title": "Every programme launches the same hardcoded loaded lower-body session \u2014 no journey-specific content, and pregnant/postnatal users get 15-20kg lifts",
+      "area": "safety",
+      "severity": "critical",
+      "location": "WorkoutPlayerScreen uses module-level TODAY_SESSION/EXERCISES lines 2148-2157/194-203; ProgrammeDetail Start/Continue lines 2122,2136; navigate('workout') passes no params",
+      "problem": "There is exactly one hardcoded workout (Glute Bridge, RDL 15kg, Sumo Squat 12kg, Hip Thrust 20kg). Every programme \u2014 New Mum Reset, Stay Fit Pregnant, Core & Pelvic Floor, Booty, Body Composition \u2014 routes to this identical loaded posterior-chain session regardless of life stage, week or day. WorkoutPlayer is not parameterised; no programme/session id is passed or read; starting a programme also never marks it active.",
+      "impact": "The specialist product promise is a facade AND a safety problem: a pregnant woman, a 6-week-post-C-section mum and a bodybuilder all get the same 15-20kg session with no adaptation. This is the core product gap and a real injury/liability risk.",
+      "fix": "Build a real programme\u2192week\u2192day\u2192session data model (rosa_sessions/PROGRAMMES.weeks already imply it). Pass navigate('workout',{prog,session}) and drive WorkoutPlayer from those params; author distinct, load-appropriate exercise sets per programme and phase, with pregnancy/early-postnatal sessions authored separately.",
+      "personas": [
+        "Founder/Product (Rosa)",
+        "React Engineer",
+        "QA Engineer"
+      ],
+      "is_broken_function": true
+    },
+    {
+      "id": "SAF-02",
+      "title": "Pregnancy and early-postnatal users are served heavy loaded lifting with no clearance gate or adaptation",
+      "area": "safety",
+      "severity": "critical",
+      "location": "Onboarding life stages lines 1515-1521; computeMatrix pregnant/new_baby branches 432-438; WorkoutPlayer 2148+; MedicalDisclaimer 1326-1341",
+      "problem": "Selecting 'Currently pregnant' or 'Just had a baby (0-6 months)' matches a programme then 'Start' delivers RDL 15kg, Hip Thrust 20kg, Sumo Squat 12kg with no trimester adjustment, no supine-position warning, no pelvic-floor-first sequencing, no diastasis/C-section screening and no warm-up. Only the pregnancy card shows a passive 'Physician advised' tag; the workout never enforces clearance, and early-postnatal has no gate at all.",
+      "impact": "Supine hip thrusts and heavy hinging are contraindicated for late pregnancy and unscreened early postpartum. Copy promises 'keeps you and your baby safe' and 'pelvic floor-first sequencing' while delivering the opposite. Real injury, reputational and liability risk.",
+      "fix": "Gate pregnancy and 0-6mo postnatal behind an explicit clearance step (checkbox + date + GP/physio confirmation) before any session starts. Author dedicated, position-safe, load-appropriate sessions (breath/TA activation, pelvic floor, no supine loading in later pregnancy). Add a diastasis/C-section screening question in onboarding for post-baby stages.",
+      "personas": [
+        "Founder/Product (Rosa)"
+      ],
+      "is_broken_function": true
+    },
+    {
+      "id": "SEC-01",
+      "title": "SECURITY DEFINER view rosa_daily_nutrition leaks every user's nutrition data to anonymous callers (full RLS bypass)",
+      "area": "security",
+      "severity": "critical",
+      "location": "DB: public.rosa_daily_nutrition (view) over rosa_nutrition_logs; public anon key at index.html:104",
+      "problem": "Base-table RLS is correctly written (auth.uid()=user_id verified), BUT public.rosa_daily_nutrition is a SECURITY DEFINER view doing SELECT user_id, logged_date, sum(kcal)... GROUP BY user_id, logged_date with NO auth.uid() filter. Being SECURITY DEFINER it runs as owner and bypasses RLS; anon has SELECT on it; it's in public schema so PostgREST exposes it. Supabase advisor flags it ERROR-level security_definer_view.",
+      "impact": "Anyone on the internet with the public anon key can GET /rest/v1/rosa_daily_nutrition and receive EVERY user's daily calorie/protein/carb/fat totals and meal counts keyed by auth UUID \u2014 a full cross-user read of health data that circumvents otherwise-correct RLS, and enables enumeration of all real user IDs.",
+      "fix": "ALTER VIEW public.rosa_daily_nutrition SET (security_invoker = on); (or add WHERE user_id = auth.uid(), or REVOKE ALL ... FROM anon, authenticated and expose via a filtered RPC). Re-test that anon receives zero rows.",
+      "personas": [
+        "Security Engineer"
+      ],
+      "is_broken_function": false
+    },
+    {
+      "id": "BE-04",
+      "title": "Workout completion never persists to rosa_sessions \u2014 streaks and progress stats are permanently fabricated",
+      "area": "workout",
+      "severity": "high",
+      "location": "WorkoutPlayerScreen done state lines 2204-2226 (setDone 2185/2233/2305); Home streak 1842-1843; ProgressScreen WEEKLY_DATA 237-244",
+      "problem": "Finishing a workout only flips local state (done=true) to show a celebration/stats screen ('Week 3/12', streak 14, weekly bars) \u2014 all from static mock data. There is no supabase.from('rosa_sessions').insert(...) anywhere; per-exercise weights the user adjusts are lost on unmount.",
+      "impact": "Zero workout history is persisted, so streaks, weekly counts, programme progress, history and the first_workout badge can never reflect real activity. Celebrations tied to fake data feel hollow and damage motivational credibility once noticed.",
+      "fix": "On transition to done, insert into rosa_sessions (user_id, programme_id, session_name, week, day, duration_mins, exercises jsonb with per-exercise weights, completed_at, optional perceived_effort/mood). Await and handle errors, then derive streak/weekly/week from persisted rows and trigger badge evaluation.",
+      "personas": [
+        "Founder/Product (Rosa)",
+        "React Engineer",
+        "Backend Engineer",
+        "QA Engineer"
+      ],
+      "is_broken_function": true
+    },
+    {
+      "id": "BE-05",
+      "title": "Badges are never awarded or persisted to rosa_badges",
+      "area": "progress",
+      "severity": "high",
+      "location": "USER.earnedBadges line 178; BADGES line 222; rendered 626/1928-1934/2962/3039; rosa_badges only referenced in comment line 161",
+      "problem": "Earned badges come entirely from the hardcoded USER.earnedBadges array. Nothing reads or writes rosa_badges and no logic evaluates criteria on real events (first workout, streaks, kitchen-meal milestones).",
+      "impact": "The entire gamification layer is decorative and identical for every user; achievements never unlock from behaviour and never persist.",
+      "fix": "Add UNIQUE(user_id, badge_id) on rosa_badges; on qualifying events insert (upsert onConflict) into rosa_badges; load earned badges on app start via select badge_id where user_id; wire award checks into the workout-complete and nutrition-log flows.",
+      "personas": [
+        "Backend Engineer",
+        "QA Engineer"
+      ],
+      "is_broken_function": true
+    },
+    {
+      "id": "BE-06",
+      "title": "Quick-track Water/Mood/Weight buttons log nothing and dead-end; rosa_body_stats is never written",
+      "area": "home",
+      "severity": "high",
+      "location": "HomeScreen Quick track lines 1891-1910 (+ Edit link 1894); ProgressScreen 2887-2991; rosa_body_stats only in comment line 162; rosa_sessions mood_before/after unused",
+      "problem": "The four tiles only call navigate(): Food\u2192nutrition, Water\u2192nutrition (no water logger), Mood\u2192progress (no mood input), Weight\u2192progress (no weight/measurement input). Nothing is captured; rosa_body_stats is never written and water/mood have no storage target at all. Weight/measurement tracking \u2014 a headline feature for a body-composition/postnatal app \u2014 does not exist.",
+      "impact": "Presenting four prominent 'Quick track' actions that record nothing (and land users on unrelated read-only screens) is a trust-breaking illusion of functionality; Progress charts have no real body-stat source.",
+      "fix": "Open a real logging sheet per metric: weight/measurements \u2192 insert rosa_body_stats (weight_kg, body_fat_pct, waist/hip/chest_cm, measured_at); mood \u2192 rosa_sessions mood fields or a new rosa_daily_track table; water \u2192 add a column/table before wiring. Add a weight trend chart on Progress. Hide any tile not yet backed by storage rather than faking it.",
+      "personas": [
+        "Founder/Product (Rosa)",
+        "React Engineer",
+        "Backend Engineer",
+        "QA Engineer"
+      ],
+      "is_broken_function": true
+    },
+    {
+      "id": "DS-01",
+      "title": "Text inputs use <16px font \u2014 iOS Safari auto-zooms on focus and does not zoom back",
+      "area": "design",
+      "severity": "high",
+      "location": "AuthInput 14px line 1219; AI textarea 13px 2677; Kitchen search 13px 2781; feedback textarea 13px 3176",
+      "problem": "Most fields set font-size 13-14px. Mobile Safari force-zooms the viewport whenever a focused input is under 16px and does not restore.",
+      "impact": "On a ~390px iPhone, focusing email/password/search/food-entry jerks the layout and leaves the user zoomed-in and horizontally scrolling \u2014 a repeated jarring failure on the most-used inputs.",
+      "fix": "Set font-size:16px minimum on all input/textarea elements; scale visual density with padding instead of font size.",
+      "personas": [
+        "Product Designer"
+      ],
+      "is_broken_function": false
+    },
+    {
+      "id": "FE-01",
+      "title": "All five Profile > Account rows are dead links, and there is no way to change goal/programme after onboarding",
+      "area": "profile",
+      "severity": "high",
+      "location": "ProfileScreen settings list lines 3071-3085; unused settingsOpen state line 2996",
+      "problem": "Edit profile, Notification settings, Units, Privacy policy and About SEZE each render with cursor:pointer and a chevron but have no onClick (settingsOpen is declared and never used). There is also no 'Change programme' / re-run-matrix flow, blocking life-stage transitions (e.g. pregnant\u2192postnatal).",
+      "impact": "Five affordances that look tappable do nothing; users cannot edit their profile, review privacy, change units, or progress between life stages \u2014 feels broken on the most settings-expecting screen.",
+      "fix": "Render rows as <button> for keyboard/AT access and wire each to a real screen/sheet (at minimum Edit profile and Privacy policy). Add a 'Change programme' flow. Remove the dead settingsOpen state.",
+      "personas": [
+        "Founder/Product (Rosa)",
+        "Product Designer",
+        "React Engineer",
+        "QA Engineer"
+      ],
+      "is_broken_function": true
+    },
+    {
+      "id": "FE-02",
+      "title": "No sign-out / logout anywhere in the app",
+      "area": "profile",
+      "severity": "high",
+      "location": "ProfileScreen Account section lines 2994-3099; supabase.auth.signOut never called from any UI",
+      "problem": "There is no logout control on Profile or anywhere else; supabase.auth.signOut() is defined but never invoked.",
+      "impact": "A signed-in user on a shared/family device (core audience: mums) can never end their session, switch accounts, or clear data \u2014 a baseline account-management expectation, a privacy concern, and an app-store review blocker.",
+      "fix": "Add a clearly styled 'Sign out' row/button at the bottom of the Account card that calls await supabase.auth.signOut() then navigate('splash').",
+      "personas": [
+        "Founder/Product (Rosa)",
+        "Product Designer",
+        "React Engineer",
+        "QA Engineer"
+      ],
+      "is_broken_function": true
+    },
+    {
+      "id": "FE-03",
+      "title": "Every screen greets and populates with the hardcoded mock user 'Sarah' \u2014 no real user data is ever loaded",
+      "area": "home",
+      "severity": "high",
+      "location": "USER mock lines 169-180; Home greeting 1840; ProfileScreen 2995/3008; Nutrition targets 2492; consumed in Home/Progress/Profile/Nutrition",
+      "problem": "Home, Progress, Profile and Nutrition all read the static USER object (name Sarah, streak 14, macros, badges). No screen loads the authenticated user's rosa_users/rosa_sessions/rosa_nutrition_logs/rosa_body_stats. Nutrition targets also come from USER.macros, not the computed onboarding targets.",
+      "impact": "After a correct login a user sees a stranger's name, streak, macros and history. A brand built on 'this is YOUR programme' reads as a demo and immediately breaks trust after the personalized onboarding reveal.",
+      "fix": "Fetch the current user's rosa_users row and aggregates on auth into a real user context, and thread live values (name, goal, programme, streak, targets) through every screen instead of USER.",
+      "personas": [
+        "Founder/Product (Rosa)",
+        "QA Engineer"
+      ],
+      "is_broken_function": true
+    },
+    {
+      "id": "FE-04",
+      "title": "Splash 'Sign Up' CTA lands on the Login form, not signup",
+      "area": "auth",
+      "severity": "high",
+      "location": "SplashScreen 'Sign Up'\u2192navigate('terms') line 1369 \u2192 handleTermsAccept\u2192navigate('auth') 3314; AuthScreen defaults useState('login') 982",
+      "problem": "Tapping the primary 'Sign Up' CTA routes through Terms then opens auth in 'login' mode ('Welcome back' / 'Sign in'). The stated intent (create account) is dropped and the user must notice the small bottom 'Sign up' toggle.",
+      "impact": "New users hit a login screen after choosing Sign Up; some bounce believing they need an existing account \u2014 a direct conversion-killer on the first screen.",
+      "fix": "Pass an intent through navigate('terms',{intent:'signup'})\u2192navigate('auth',{intent:'signup'}) and initialise AuthScreen mode from it.",
+      "personas": [
+        "Product Designer"
+      ],
+      "is_broken_function": true
+    },
+    {
+      "id": "FE-05",
+      "title": "Email-verify 'continue' (and auto-confirm signup) routes to home, skipping onboarding, with no session recheck",
+      "area": "auth",
+      "severity": "high",
+      "location": "AuthScreen verify state line 1074 ('I've verified \u2014 continue \u2192'\u2192navigate('home')); signup session branch line 1027",
+      "problem": "After signup the verify screen's button calls navigate('home') unconditionally without re-checking that a confirmed session exists, and any auto-confirm signup with an immediate session also skips to home. Neither routes through the 7-step onboarding that sets programme and macros.",
+      "impact": "New users land on a mock-data home ('Sarah', New Mum Reset), never complete onboarding, and their profile row is never populated. Client routing is also being treated as a security boundary it isn't.",
+      "fix": "On continue, call supabase.auth.getSession() and only proceed if a confirmed session exists; route verified new users to 'onboarding' (or check rosa_users.onboarding_complete first), reaching 'home' only when onboarding_complete is true.",
+      "personas": [
+        "React Engineer",
+        "QA Engineer",
+        "Security Engineer"
+      ],
+      "is_broken_function": true
+    },
+    {
+      "id": "FE-06",
+      "title": "Forgot-password flow dead-ends \u2014 no set-new-password screen, and recovery links act as passwordless logins",
+      "area": "auth",
+      "severity": "high",
+      "location": "resetPasswordForEmail line 1038; detectSessionInUrl:true line 135; App router 3273-3296/3329 (no recovery screen)",
+      "problem": "resetPasswordForEmail sends a recovery link back to the app, but there is no route handling the PASSWORD_RECOVERY event or calling supabase.auth.updateUser({password}). detectSessionInUrl creates a session and getProfileRoute drops the user on home/onboarding \u2014 they are never prompted to set a new password.",
+      "impact": "Users can request a reset but can never set a new password (feature functionally incomplete). Security-wise the recovery link becomes a durable magic-login: anyone obtaining the emailed link (forwarded email, shared device, mail history) gets a full authenticated session.",
+      "fix": "Add a reset_password screen: listen for onAuthStateChange 'PASSWORD_RECOVERY', render a new-password form, call supabase.auth.updateUser({password}), then sign out other sessions.",
+      "personas": [
+        "QA Engineer",
+        "Security Engineer"
+      ],
+      "is_broken_function": true
+    },
+    {
+      "id": "FE-07",
+      "title": "Imperial units toggle corrupts height/weight \u2014 uncontrolled inputs, no conversion, wrong-unit macro calc",
+      "area": "onboarding",
+      "severity": "high",
+      "location": "Step3 unit toggle line 1567, inputs 1576-1581 (defaultValue), conversion in next() 1424-1425; computeMatrix 464-473",
+      "problem": "Height/weight inputs use defaultValue (uncontrolled), so toggling Metric\u2194Imperial only relabels \u2014 165 (cm) stays 165, now read as '165 ft'. computeMatrix uses answers.height/weight raw with no imperial handling, while next() does answers.height*2.54 assuming inches (turning 165 into 419cm). Imperial height is also a single decimal-feet field (default 5.4) with no inches input.",
+      "impact": "Any user who touches the Imperial toggle produces nonsensical stored height/weight that feeds the TDEE/macro calc \u2014 garbage targets \u2014 and the field visually lies because the uncontrolled input won't repaint.",
+      "fix": "Make inputs controlled (value={answers[f.key]}); convert stored values on toggle and store canonical metric so the submit conversion is idempotent; provide separate ft+in inputs for imperial and normalise to cm/kg before computeMatrix.",
+      "personas": [
+        "Product Designer",
+        "React Engineer",
+        "QA Engineer"
+      ],
+      "is_broken_function": true
+    },
+    {
+      "id": "NU-04",
+      "title": "SEZE Kitchen 'Log this meal' never persists to rosa_nutrition_logs and ignores the selected portions",
+      "area": "nutrition",
+      "severity": "high",
+      "location": "NutritionScreen onLog lines 2562-2570; kitchenLogged state 2481; MealDetail portions state 2823-2856",
+      "problem": "Two bugs in one flow: (1) kitchen onLog only updates local React state \u2014 unlike confirmLog it makes no rosa_nutrition_logs insert, so kitchen meals are never saved. (2) MealDetail's portions state scales the displayed macros but onLog logs the raw selectedMeal at 1 portion \u2014 portions is never passed up, so choosing 2 portions still logs one.",
+      "impact": "Kitchen-logged meals vanish on reload and never reach the backend; when counted locally the calorie/macro totals are wrong for any portion other than 1. Inconsistent with the AI-log path.",
+      "fix": "In onLog scale macros by portions, pass portions up, and insert into rosa_nutrition_logs with source:'menu_scan'/'manual' \u2014 mirroring confirmLog.",
+      "personas": [
+        "React Engineer",
+        "QA Engineer"
+      ],
+      "is_broken_function": true
+    },
+    {
+      "id": "NU-05",
+      "title": "Fibre, sugar and sodium are absent from the food DB and never logged despite existing DB columns",
+      "area": "nutrition",
+      "severity": "high",
+      "location": "FOOD_DB line 257; parseFood line 416; confirmLog insert 2522-2533",
+      "problem": "FOOD_DB stores only kcal/protein/carbs/fat; parseFood emits no fiber/sugar/sodium; confirmLog omits fiber_g/sugar_g/sodium_mg even though those columns exist. For a women's-health app spanning pregnancy/postnatal, fibre, added sugar and sodium are among the most clinically relevant fields and are entirely missing.",
+      "impact": "No fibre/sugar/sodium tracking anywhere; the app cannot coach on the metrics most relevant to its audience and populated DB columns stay null.",
+      "fix": "Add fiber_g/sugar_g/sodium_mg per 100g to FOOD_DB entries, scale them in parseFood like the other macros, and include them in the confirmLog insert. This is the natural landing point for the planned Open Food Facts + USDA import.",
+      "personas": [
+        "Nutritionist"
+      ],
+      "is_broken_function": false
+    },
+    {
+      "id": "NU-06",
+      "title": "Chips/fries mapped to boiled-potato values \u2014 ~400 kcal per-item undercount",
+      "area": "nutrition",
+      "severity": "high",
+      "location": "FOOD_DB line 304",
+      "problem": "'chips' is an alias of 'potato' at k:77/100g (boiled). Chips/fries are ~290-320 kcal/100g; a 180g default portion logs ~139 kcal vs a true ~530-580. Common UK/text input ('chips') is a high-frequency entry, so error frequency is high.",
+      "impact": "Users logging chips see roughly a quarter of the real calories, silently blowing their deficit.",
+      "fix": "Remove 'chips' from potato aliases and add a dedicated fried-chips entry (~k:312, p:3.4, c:41, f:15, g:150). Cooking method matters \u2014 plan for the fast-food dataset to supply fried items.",
+      "personas": [
+        "Nutritionist"
+      ],
+      "is_broken_function": false
+    },
+    {
+      "id": "NU-07",
+      "title": "BMR hardcodes age 25 and onboarding never collects DOB \u2014 targets overstated for the 35+/postnatal core demographic",
+      "area": "nutrition",
+      "severity": "high",
+      "location": "computeMatrix BMR line 466 ('-5 * 25'); onboarding never collects date_of_birth (Step2/3, 1515-1602)",
+      "problem": "BMR = 10*weight + 6.25*height - 5*25 - 161 fixes age at 25; date_of_birth is never asked though rosa_users has the column. The Mifflin-St Jeor female constant (-161) is correct, but at 45 the true -5*age term makes BMR ~100 kcal lower (~130-155 after activity multiplier).",
+      "impact": "Calorie targets are systematically 100-200 kcal too high for exactly the 35-45+ women the app is built for, undermining fat-loss outcomes and trust.",
+      "fix": "Collect DOB (or age) in onboarding, compute age, pass into Mifflin-St Jeor (BMR = 10*kg + 6.25*cm - 5*age - 161), and persist to rosa_users.date_of_birth.",
+      "personas": [
+        "Founder/Product (Rosa)",
+        "Nutritionist"
+      ],
+      "is_broken_function": false
+    },
+    {
+      "id": "PR-01",
+      "title": "'Cycle-aware' is promised in copy but no cycle/menstrual tracking exists anywhere",
+      "area": "product",
+      "severity": "high",
+      "location": "computeMatrix Weight Reset reason line 447 ('is cycle-aware'); no cycle feature in any screen",
+      "problem": "The Weight Reset match reason explicitly tells users the programme 'is cycle-aware', but there is no menstrual/cycle input, no phase, and nothing in training or nutrition responds to a cycle \u2014 an empty claim.",
+      "impact": "A women's-specialist brand claiming cycle-awareness with nothing behind it erodes trust and is a credibility risk; cycle awareness is also a genuinely expected feature for this audience.",
+      "fix": "Build basic cycle tracking (last period date, cycle length, phase-aware training/nutrition nudges) or remove the 'cycle-aware' claim until it ships.",
+      "personas": [
+        "Founder/Product (Rosa)"
+      ],
+      "is_broken_function": false
+    },
+    {
+      "id": "PR-02",
+      "title": "No progress-photos feature \u2014 the most expected tool for a body-composition/postnatal journey is absent",
+      "area": "product",
+      "severity": "high",
+      "location": "ProgressScreen 2887-2991; ProfileScreen 2994-3099; camera is food-only (FoodCameraButton 2339)",
+      "problem": "There is no before/after or weekly progress-photo capability; the only camera use is food/menu scanning. rosa_body_stats has no photo column or gallery.",
+      "impact": "For rebuilding-your-body, postnatal and body-composition users, progress photos are often more motivating than the scale; their absence makes 'Here's the proof' feel thin (the only 'proof' is a session bar chart).",
+      "fix": "Add a private, dated progress-photo gallery (optional pose guide, side-by-side compare) with clear privacy messaging, surfaced as a primary Progress card.",
+      "personas": [
+        "Founder/Product (Rosa)"
+      ],
+      "is_broken_function": false
+    },
+    {
+      "id": "PR-03",
+      "title": "No actual pelvic-floor guidance despite it being a core brand pillar",
+      "area": "product",
+      "severity": "high",
+      "location": "Core & Pelvic Floor programme line 186 (active:false, no content); ROSA_TIPS line 248; EXERCISES has none",
+      "problem": "Pelvic floor is repeatedly named as 'your foundation' in copy, but there is zero pelvic-floor content: no breath/activation guidance, no education, no dedicated exercises, and the Core & Pelvic Floor programme is inactive with no sessions.",
+      "impact": "The most differentiated, medically-meaningful part of the WHY is unbuilt; for postnatal recovery this is the clinical core users come for.",
+      "fix": "Author real pelvic-floor/core-recovery content (connection breath, TA/PF activation, progressive loading, diastasis-safe movements) with form guidance and 'stop if you feel pain/heaviness, see a pelvic health physio' safety language.",
+      "personas": [
+        "Founder/Product (Rosa)"
+      ],
+      "is_broken_function": false
+    },
+    {
+      "id": "PR-04",
+      "title": "Workout exercises have no visual demonstration or form guidance",
+      "area": "workout",
+      "severity": "high",
+      "location": "WorkoutPlayerScreen 2256-2306; EXERCISES tips only 194-203",
+      "problem": "Each exercise shows only a name, reps, weight and a one-line text tip \u2014 no image, video, animation or technique guidance. For postnatal/pregnancy/beginner women this is the highest-injury-risk area.",
+      "impact": "Users performing loaded hinges and thrusts with no demonstration is unsafe and undercuts the 'elite expertise, built for you' promise; the session feels like a placeholder.",
+      "fix": "Add exercise demo media (video/GIF or form illustrations), key form cues, and a 'how it should feel / when to stop' note per exercise, with extra caution flags on postnatal/pregnancy variants.",
+      "personas": [
+        "Founder/Product (Rosa)"
+      ],
+      "is_broken_function": false
+    },
+    {
+      "id": "PR-05",
+      "title": "No programme progression \u2014 one static week/day, and completing a workout advances nothing",
+      "area": "product",
+      "severity": "high",
+      "location": "TODAY_SESSION static line 192; ProgrammeDetail week grid hardcoded to USER.programmeWeek 2117-2133; WorkoutPlayer done state doesn't persist 2204-2225",
+      "problem": "The programme is frozen at Week 3/Day 2 for everyone. Finishing a session shows a celebration but never advances week/day, updates streak, or serves a next session; there is no next-session logic or progressive overload.",
+      "impact": "There is no sense of a programme progressing over 6-12 weeks \u2014 the defining feature of a training programme. Motivation collapses when 'Session complete!' leads nowhere and tomorrow is identical.",
+      "fix": "After persisting sessions (BE-04), advance programme_week/day, recompute streak/progress from logged data, serve the next session, and add basic progressive-overload logic across weeks.",
+      "personas": [
+        "Founder/Product (Rosa)"
+      ],
+      "is_broken_function": true
+    },
+    {
+      "id": "SEC-02",
+      "title": "analyze-image is called with no Authorization header \u2014 feature 401s to a fabricated 400 kcal placeholder, or the endpoint is open/unauthenticated",
+      "area": "nutrition",
+      "severity": "high",
+      "location": "FoodCameraButton fetch 2354-2358 & catch 2360-2368; MenuScannerTab 2403-2412",
+      "problem": "Both fetches to /functions/v1/analyze-image send only Content-Type \u2014 no Authorization: Bearer / apikey. With verify_jwt on (default) every request 401s and the catch injects a hardcoded {name:'Meal from photo', kcal:400, protein:20, carbs:40, fat:12} (or menu error state). If verify_jwt was turned off to make it work, the endpoint is callable by anyone with an arbitrary base64 payload \u2014 no auth, no rate limiting, no user context.",
+      "impact": "Either a headline feature is dead and every photo silently logs an identical invented 400 kcal meal (corrupting nutrition data), or there is an unauthenticated unmetered image-processing endpoint open to denial-of-wallet and probing.",
+      "fix": "Send headers { apikey: SUPABASE_ANON_KEY, Authorization: 'Bearer ' + session.access_token }; keep verify_jwt on so only signed-in users can invoke it; add rate limiting/size caps in the function; parse the real response into per-item macros and, on failure, show an explicit error state instead of fabricating macros.",
+      "personas": [
+        "React Engineer",
+        "Nutritionist",
+        "QA Engineer",
+        "Security Engineer"
+      ],
+      "is_broken_function": true
+    },
+    {
+      "id": "BE-07",
+      "title": "RLS policies on all rosa_* tables must be confirmed (no policy = all authenticated access denied)",
+      "area": "security",
+      "severity": "medium",
+      "location": "rosa_users, rosa_sessions, rosa_nutrition_logs, rosa_body_stats, rosa_badges, rosa_feedback",
+      "problem": "RLS is enabled on all tables. If per-table policies are missing, PostgREST denies inserts/selects and returns an error the app never checks, so even schema-correct writes silently fail. (The security audit later confirmed base-table policies ARE correctly written as auth.uid()=user_id / =id \u2014 this finding is largely a verify-and-keep item; the real policy defects live in SEC-01 and SEC-03.)",
+      "impact": "If any policy is absent nothing the user does persists and the failure is invisible. Must be verified against the live project before shipping.",
+      "fix": "Verify with get_advisors/execute_sql that SELECT/INSERT/UPDATE owner policies exist for every user-owned table (auth.uid()=user_id, or =id for rosa_users). Decide the rosa_feedback anonymous stance (see SEC-03).",
+      "personas": [
+        "Backend Engineer",
+        "QA Engineer"
+      ],
+      "is_broken_function": false
+    },
+    {
+      "id": "BE-08",
+      "title": "Nutrition AI-log insert is fire-and-forget with no error handling and drops several columns",
+      "area": "nutrition",
+      "severity": "medium",
+      "location": "NutritionScreen.confirmLog lines 2509-2537 (insert 2522-2533)",
+      "problem": "confirmLog optimistically updates local state then inserts into rosa_nutrition_logs (correct table) but without awaiting, without error handling, and omitting fiber_g/sugar_g/sodium_mg/photo_url/raw_ai_response. Any RLS denial, network error or bad column silently disappears while the UI shows the meal as logged. The mapped fields are otherwise schema-correct.",
+      "impact": "Local total and backend diverge with no feedback; on reload the meal disappears and debugging is impossible because errors are discarded. This is the one write that targets the right table, so it is worth hardening.",
+      "fix": "Await each insert and inspect error (toast/mark unsynced on failure); batch into a single .insert([...]) call; capture photo_url and raw_ai_response from the analyze-image path; confirm RLS insert policy exists.",
+      "personas": [
+        "React Engineer",
+        "Backend Engineer"
+      ],
+      "is_broken_function": false
+    },
+    {
+      "id": "BE-09",
+      "title": "App is fully CDN-dependent with in-browser Babel and no offline support despite a PWA manifest",
+      "area": "backend",
+      "severity": "medium",
+      "location": "head scripts lines 18-21; manifest line 15",
+      "problem": "React, ReactDOM, Babel-standalone and supabase-js all load from unpkg/jsdelivr at runtime and JSX is transpiled in-browser by Babel. There is no service worker, yet the manifest/apple-web-app meta advertise installability.",
+      "impact": "Offline launch, flaky mobile networks or a blocked CDN yield a blank page; in-browser Babel also adds a slow first paint on mobile.",
+      "fix": "Pre-build/bundle the JS (remove in-browser Babel), self-host the libraries, and add a service worker to cache the shell for offline.",
+      "personas": [
+        "QA Engineer"
+      ],
+      "is_broken_function": false
+    },
+    {
+      "id": "DS-02",
+      "title": "Off-palette accent colours break the brand system on the primary landing screen",
+      "area": "design",
+      "severity": "medium",
+      "location": "Home streak pill orange #D97A2B on #FFF0E1 lines 1841-1843; Quick-track Mood #F5A623 and Weight #9B6DD6 lines 1900-1901",
+      "problem": "The system is pink (#E04486) + teal (#15B5A6), but Home introduces an orange streak pill and amber/purple quick-track icons that appear nowhere else and aren't defined as tokens (the same streak is amethyst elsewhere).",
+      "impact": "Four one-off colours on the primary screen make it look like a different app than onboarding/progress, undermining the premium feel.",
+      "fix": "Recolour the streak pill and quick-track icons to the pink/teal system (or add a single sanctioned warm-accent token used consistently); reuse the amethyst StreakBanner styling on Home.",
+      "personas": [
+        "Product Designer"
+      ],
+      "is_broken_function": false
+    },
+    {
+      "id": "DS-03",
+      "title": "Low-contrast pink secondary text fails WCAG AA",
+      "area": "design",
+      "severity": "medium",
+      "location": "SectionHeader rgba(224,68,134,0.65) line 674; subtitles/meta 0.6-0.7 (926,1490,1526,2088,2129); soft text rgba(26,13,20,0.4) line 33",
+      "problem": "Small labels, taglines and metadata are pink at 60-70% opacity on white (~2.5-3:1 contrast), below the 4.5:1 AA threshold for text under ~18px.",
+      "impact": "Section headers, macro labels, phase weeks and captions are hard to read outdoors and for lower-vision users \u2014 a real accessibility gap for the target demographic.",
+      "fix": "Darken secondary text to a token meeting 4.5:1 (e.g. #B72B6D full opacity or #1A0D14 at 0.6) for anything \u226414px; reserve pale pink for large display type only.",
+      "personas": [
+        "Product Designer"
+      ],
+      "is_broken_function": false
+    },
+    {
+      "id": "DS-04",
+      "title": "Interactive cards are non-focusable divs \u2014 keyboard and screen readers cannot reach primary navigation",
+      "area": "design",
+      "severity": "medium",
+      "location": "onClick divs: Home workout 1853, nutrition 1875, quick-track 1903; ProgrammeCard 1994; Kitchen meal cards 2802; GlassCard onClick rows",
+      "problem": "Primary navigation targets are plain <div onClick> with no role, tabindex, keyboard handler or focus ring.",
+      "impact": "Keyboard and screen-reader users cannot reach the main workout/nutrition/programme entry points; the app is largely non-operable without a pointer.",
+      "fix": "Render these as <button> (or add role='button' tabIndex=0 + onKeyDown for Enter/Space) so the existing :focus-visible outline applies.",
+      "personas": [
+        "Product Designer"
+      ],
+      "is_broken_function": false
+    },
+    {
+      "id": "DS-05",
+      "title": "Tap targets below the 44px minimum on high-frequency controls",
+      "area": "design",
+      "severity": "medium",
+      "location": "Parsed-item qty +/- 24px 2719-2721; logged-item remove 28px 2760; MealDetail portions +/- 32px 2852-2854; feedback close 32px 3153",
+      "problem": "Several frequently-used controls are 24-32px, under the ~44px recommended touch target.",
+      "impact": "On a 390px screen the qty steppers and remove buttons are easy to mis-tap, particularly the 24px +/- used while adjusting logged food.",
+      "fix": "Enlarge hit areas to \u226544px (increase padding or wrap in a larger tappable area while keeping the glyph small).",
+      "personas": [
+        "Product Designer"
+      ],
+      "is_broken_function": false
+    },
+    {
+      "id": "DS-06",
+      "title": "Floating Feedback (and Dev) button clutters splash/auth and overlays the dark workout player",
+      "area": "product",
+      "severity": "medium",
+      "location": "FeedbackButton rendered every screen in App line 3349; fixed bottom:148px right:16px line 3189",
+      "problem": "The pink Feedback pill renders on splash, terms, auth and onboarding \u2014 where there's nothing to give feedback on \u2014 and floats over the dark workout player near the finish control, clashing with its theme.",
+      "impact": "First-run screens look busy/beta and the immersive workout focus mode is broken by a bright pink pill that risks overlapping the finish action.",
+      "fix": "Only mount FeedbackButton on the authenticated tabs (home/programmes/nutrition/progress/profile); hide it on splash/terms/auth/onboarding and the workout player.",
+      "personas": [
+        "Product Designer"
+      ],
+      "is_broken_function": false
+    },
+    {
+      "id": "FE-08",
+      "title": "Programme detail misrepresents every non-active programme (active user's week, hardcoded phases, 12-week grid for the 0-week pregnant programme)",
+      "area": "programmes",
+      "severity": "medium",
+      "location": "ProgrammeDetail week grid uses USER.programmeWeek 2117-2129; phases hardcoded 3\u00d74 weeks 2094-2109; weeks = Array.from({length: prog.weeks || 12}) line 2041",
+      "problem": "Opening ANY programme marks Week 3 'In progress' and weeks 1-2 'Complete' from the global USER.programmeWeek. Phases are hardcoded Restore/Strengthen/Transform at weeks 1-4/5-8/9-12 regardless of real length, and prog.weeks:0 (Stay Fit Pregnant) is falsy so it defaults to a 12-week grid while the trimester Phases block is hidden.",
+      "impact": "A 6-week Core programme shows a phase spanning 'Weeks 9-12'; an unstarted programme falsely shows progress; a trimester-based pregnancy programme shows a fixed 12-week session grid.",
+      "fix": "Only show progress/current-week when prog.active, else a neutral 'Not started' grid; derive phase count and week ranges from prog.weeks; handle weeks===0 explicitly (render a trimester structure) instead of defaulting to 12.",
+      "personas": [
+        "Product Designer",
+        "QA Engineer"
+      ],
+      "is_broken_function": false
+    },
+    {
+      "id": "FE-09",
+      "title": "Apple & Meta sign-in buttons look active but fail with a raw error",
+      "area": "auth",
+      "severity": "medium",
+      "location": "AuthScreen OAuth buttons lines 1119-1121; handleOAuth 1048-1062",
+      "problem": "Continue with Apple and Continue with Meta render identically to Google and call handleOAuth('apple'/'facebook'), invoking signInWithOAuth for providers that (per product decisions) are 'coming soon'/unconfigured. There is no visual signal only Google + email are live.",
+      "impact": "Users tap a prominent apparently-working button and get an 'unsupported provider' error, eroding trust at the auth gate.",
+      "fix": "Add a muted 'Soon' pill and disabled styling to Apple/Meta (or intercept the click to show a friendly 'Coming soon' toast), and map provider-not-enabled in friendlyError.",
+      "personas": [
+        "Product Designer",
+        "React Engineer",
+        "QA Engineer"
+      ],
+      "is_broken_function": true
+    },
+    {
+      "id": "FE-10",
+      "title": "Auth submit and OAuth buttons stay tappable during async \u2014 double-tap fires duplicate auth calls",
+      "area": "auth",
+      "severity": "medium",
+      "location": "AuthScreen email submit PillButton line 1160; handleEmail 1010; OAuthButtons",
+      "problem": "handleEmail sets loading('email') and the label becomes 'Please wait\u2026' but the PillButton is never disabled, so a second tap re-invokes signUp/signIn/resetPasswordForEmail. OAuth buttons have no disabled guard either.",
+      "impact": "Impatient users double-tap and trigger duplicate signups/reset emails and rate-limit lockouts with confusing errors.",
+      "fix": "Pass disabled={loading==='email'} to the submit PillButton (it already supports a disabled style) and disable OAuth buttons while their provider is loading.",
+      "personas": [
+        "Product Designer",
+        "QA Engineer"
+      ],
+      "is_broken_function": false
+    },
+    {
+      "id": "FE-11",
+      "title": "Onboarding goal labels/IDs don't map to the matrix branches \u2014 recommendation contradicts the user's choice",
+      "area": "onboarding",
+      "severity": "medium",
+      "location": "Step4 GOALS lines 1605-1613 (id 'booty' labelled 'Body composition'); computeMatrix branches 439-457",
+      "problem": "The tile labelled 'Body composition' has id 'booty' so it routes to Booty Building. Goals 'rebuild', 'prenatal' and 'energy' have no matrix branch and fall through to the default composition result; 'prenatal' never maps to the pregnant programme; 'gain_weight' has no UI option.",
+      "impact": "The headline 'SEZE has matched you with\u2026' can contradict the pick \u2014 'Body composition' yields a booty programme, 'Train in pregnancy' yields a generic default \u2014 undermining the personalised-match narrative.",
+      "fix": "Align tile ids with intent (booty\u2192body_comp or relabel) and add matrix branches for rebuild/prenatal/energy so every selectable goal maps to a sensible programme.",
+      "personas": [
+        "Product Designer",
+        "QA Engineer"
+      ],
+      "is_broken_function": false
+    },
+    {
+      "id": "FE-12",
+      "title": "Dev test panel and auto-tour ship to production users",
+      "area": "product",
+      "severity": "medium",
+      "location": "DevTestButton lines 3199-3243; rendered unconditionally in App line 3350",
+      "problem": "A floating 'Dev' button with a screen-jump menu and an 'Auto-tour (2.5s each)' that programmatically cycles every screen is always rendered on the live Vercel build, behind no env/host flag.",
+      "impact": "Real users see and can trigger an internal QA tool, jumping into onboarding/workout out of sequence and bypassing auth gating; it reads as unfinished and breaks the premium impression.",
+      "fix": "Gate it behind a dev check (hostname==='localhost' or ?dev=1) or strip it from the production bundle.",
+      "personas": [
+        "Product Designer",
+        "React Engineer",
+        "QA Engineer"
+      ],
+      "is_broken_function": false
+    },
+    {
+      "id": "FE-13",
+      "title": "Home calorie total (1240) contradicts the Nutrition screen total (1040)",
+      "area": "nutrition",
+      "severity": "medium",
+      "location": "USER.macros.kcal line 179; MEALS_TODAY 205-209; Nutrition totals line 2491",
+      "problem": "Home's nutrition card shows USER.macros.kcal = 1240/1800, but the Nutrition screen sums MEALS_TODAY (320+510+210 = 1040). The two 'today' numbers disagree.",
+      "impact": "The same day's calories read differently on Home vs Nutrition, making the app look buggy and untrustworthy.",
+      "fix": "Derive Home's figure from the same source as Nutrition (loggedItems total) rather than a separate mock constant.",
+      "personas": [
+        "QA Engineer"
+      ],
+      "is_broken_function": false
+    },
+    {
+      "id": "FE-14",
+      "title": "Nutrition screen is pre-seeded with 3 meals the user never logged",
+      "area": "nutrition",
+      "severity": "medium",
+      "location": "loggedItems init lines 2487-2489 (MEALS_TODAY)",
+      "problem": "loggedItems initialises from MEALS_TODAY (Greek yoghurt bowl, salmon bowl, protein shake), so a brand-new user opens Nutrition to find three meals already logged today.",
+      "impact": "Confusing empty-state: the log and calorie ring show fabricated intake and the genuine empty-state card is never seen.",
+      "fix": "Initialise loggedItems from the user's rosa_nutrition_logs for today (empty for new users); keep MEALS_TODAY only for demo mode.",
+      "personas": [
+        "QA Engineer"
+      ],
+      "is_broken_function": false
+    },
+    {
+      "id": "FE-15",
+      "title": "Onboarding runs with no auth guard; unauthenticated completion silently drops all data",
+      "area": "onboarding",
+      "severity": "medium",
+      "location": "OnboardingScreen next() line 1416",
+      "problem": "The final save is wrapped in getSession().then(session => { if(session){...} }). If there is no session (verify path, dev jump, expired session) the entire save is skipped and it just navigate('home') with no warning.",
+      "impact": "A user can complete all 7 steps and have everything discarded silently, then see mock home data.",
+      "fix": "Require an authenticated session to reach onboarding; if the session is missing, route to auth instead of silently dropping the write.",
+      "personas": [
+        "QA Engineer"
+      ],
+      "is_broken_function": false
+    },
+    {
+      "id": "NU-08",
+      "title": "Carbs are a blind remainder and can go negative; no macro clamping",
+      "area": "nutrition",
+      "severity": "medium",
+      "location": "computeMatrix lines 471-473",
+      "problem": "protein = weight*2.0 (fixed), fat = kcal*0.28/9, carbs = (kcal - protein*4 - fat*9)/4. Because protein scales with body weight while kcal is capped by a deficit, a heavier user on a deficit can have protein*4 + fat*9 exceed kcal, producing negative carbs. 2.0 g/kg against total bodyweight also over-inflates protein for higher-BF users.",
+      "impact": "Physiologically impossible negative-carb targets, or protein-dominated splits that don't sum correctly, feeding wrong ring/remaining math.",
+      "fix": "Clamp carbs to Math.max(0, ...); cap protein (1.6-2.2 g/kg, reduce if >~35% of kcal), set a fat minimum (0.8-1.0 g/kg), and validate protein*4 + fat*9 < kcal before assigning carbs.",
+      "personas": [
+        "Nutritionist"
+      ],
+      "is_broken_function": false
+    },
+    {
+      "id": "NU-09",
+      "title": "Generic fallback estimate (150 kcal, 8/15/6) is arbitrary and applied per unit quantity on a small UK-centric DB",
+      "area": "nutrition",
+      "severity": "medium",
+      "location": "parseFood fallback line 418; NutritionScreen submitAI line 2501",
+      "problem": "Any unmatched food logs as 150 kcal / 8P / 15C / 6F multiplied by parsed quantity. 'large pizza' or '3 curries' yields a wildly low estimate, with only a small 'estimated' flag. The ~80-item FOOD_DB makes fallback hits frequent.",
+      "impact": "Frequent silent mis-estimates for anything outside the DB, biased low for calorie-dense foods.",
+      "fix": "This is the primary integration point for the planned Open Food Facts + USDA + fast-food datasets \u2014 on a DB miss query those by name before falling back; keep the flat fallback as last resort and make estimated items require user confirmation of portion/calories.",
+      "personas": [
+        "Nutritionist"
+      ],
+      "is_broken_function": false
+    },
+    {
+      "id": "NU-10",
+      "title": "Match-reason copy makes an absolute pregnancy safety claim that contradicts the app's own disclaimer",
+      "area": "health-claim",
+      "severity": "medium",
+      "location": "computeMatrix reason string line 434; MedicalDisclaimer 1333-1335",
+      "problem": "The pregnancy reason text states the programme 'keeps you and your baby safe' \u2014 an unqualified medical guarantee generated automatically before any physician clearance \u2014 while the disclaimer says prenatal content requires physician sign-off and that staff are fitness professionals, not physiotherapists.",
+      "impact": "An absolute fetal-safety claim is a regulatory/liability exposure and conflicts with the app's own disclaimer.",
+      "fix": "Soften to conditional, cleared language (e.g. 'designed to be adapted through each trimester \u2014 to be undertaken only with your GP or midwife's clearance'). Never guarantee fetal safety in generated copy.",
+      "personas": [
+        "Nutritionist"
+      ],
+      "is_broken_function": false
+    },
+    {
+      "id": "PR-06",
+      "title": "Somatotype body-type step is off-mission, non-evidence-based, and cannot persist",
+      "area": "onboarding",
+      "severity": "medium",
+      "location": "Step3 BODY_TYPES lines 1551-1555, 1586-1599",
+      "problem": "Onboarding asks users to self-classify Lean/Athletic/Curvy with 'endomorph = gains weight more easily'. Somatotypes are pseudoscientific, the bodyType answer is collected but rosa_users has no matching column, and it isn't used in computeMatrix.",
+      "impact": "For a body-positive, medically-aware women's brand a 'you're the type that gains weight easily' label is off-tone, adds no programming value, and can't be stored.",
+      "fix": "Remove the somatotype step (or replace with an experience-level question that actually feeds programming); if kept, drop the weight-gain framing and don't attempt to persist to a non-existent column.",
+      "personas": [
+        "Founder/Product (Rosa)"
+      ],
+      "is_broken_function": false
+    },
+    {
+      "id": "PR-07",
+      "title": "'AI' labelling overstates what the local rules engine and food parser actually do",
+      "area": "nutrition",
+      "severity": "medium",
+      "location": "Onboarding 'AI programme matching' 1504; Step7 'SEZE is analysing your profile' 1775; Nutrition 'AI Log' tab 2628; sparkle iconography 2668",
+      "problem": "Matching and food logging are presented as 'AI'/analysis (spinner delays, sparkle icons, 'Calculating\u2026', 'SEZE is analysing') but are a deterministic local rules engine (computeMatrix) and a local food-string parser (parseFood) with a fake setTimeout delay. (Note: real LLM is intentionally deferred \u2014 this is about the copy, not the deferral.)",
+      "impact": "Calling deterministic logic 'AI' risks a trust/credibility hit and ad-standards scrutiny, and sets accuracy expectations the local parser can't meet (unknown foods silently estimated at 150 kcal).",
+      "fix": "Soften copy to what's true now ('Smart match', 'Quick log', 'Estimating\u2026') and clearly flag estimated food entries; reintroduce 'AI' language when the deferred LLM is actually wired in.",
+      "personas": [
+        "Founder/Product (Rosa)"
+      ],
+      "is_broken_function": false
+    },
+    {
+      "id": "SEC-03",
+      "title": "rosa_feedback INSERT policy is WITH CHECK (true) \u2014 anyone can spoof feedback as any user, and the client swallows errors",
+      "area": "security",
+      "severity": "medium",
+      "location": "DB policy insert_feedback on public.rosa_feedback; client insert index.html:3112-3130",
+      "problem": "The INSERT policy has WITH CHECK (true) for role public (incl. anon), with no tie between inserted user_id and auth.uid(); the client even writes user_id: session?.user?.id || null. Separately the insert is in a try/catch with an empty catch and shows success (sent=true) regardless of outcome. Advisor flags rls_policy_always_true.",
+      "impact": "Any holder of the public anon key can insert unlimited feedback attributed to any user_id (or null) with arbitrary content \u2014 data poisoning, spam, impersonation (combined with the enumerable IDs from SEC-01). And genuinely-failed inserts are reported to the user as 'sent'.",
+      "fix": "Replace with WITH CHECK (auth.uid() = user_id) and restrict to role authenticated (or force user_id null via default + server-side rate limiting for anonymous feedback). Log the insert error instead of an empty catch.",
+      "personas": [
+        "Backend Engineer",
+        "QA Engineer",
+        "Security Engineer"
+      ],
+      "is_broken_function": false
+    },
+    {
+      "id": "SEC-04",
+      "title": "SECURITY DEFINER functions have mutable search_path, and handle_new_user is anon-executable via RPC",
+      "area": "security",
+      "severity": "medium",
+      "location": "DB: public.handle_new_user(), public.handle_updated_at()",
+      "problem": "handle_new_user (the signup trigger that inserts the rosa_users row \u2014 it does exist) and handle_updated_at are SECURITY DEFINER with no fixed search_path (advisor function_search_path_mutable), and handle_new_user is EXECUTE-able by anon/authenticated via /rest/v1/rpc/handle_new_user.",
+      "impact": "A SECURITY DEFINER function with mutable search_path can be hijacked to run attacker-controlled objects with the definer's elevated privileges (classic privilege escalation); exposing handle_new_user as a public RPC is unnecessary attack surface.",
+      "fix": "ALTER FUNCTION ... SET search_path = '' (and schema-qualify all references) for both; REVOKE EXECUTE ON FUNCTION public.handle_new_user() FROM anon, authenticated (the trigger still fires internally).",
+      "personas": [
+        "Security Engineer"
+      ],
+      "is_broken_function": false
+    },
+    {
+      "id": "SEC-05",
+      "title": "GDPR consent and 18+ age gate are enforced only client-side and stored in user-editable metadata, never reaching rosa_users",
+      "area": "product",
+      "severity": "medium",
+      "location": "TermsScreen 908-963; signUp options.data 1020-1023; consent checkboxes 947-951",
+      "problem": "The consent gate (Terms/Privacy/Medical + GDPR + 18+) is pure UI. signUp stores gdpr_consent/gdpr_date/marketing_consent/full_name in options.data (auth.users.raw_user_meta_data), which is user-supplied and client-controlled; anyone calling the auth API with the anon key can create an account with no consent or set gdpr_consent:true unseen. rosa_users.full_name is never populated from it and there is no consent column; age is never verified.",
+      "impact": "For a health app processing DOB, body measurements and pregnancy/postnatal life stage targeted at women, an unverifiable, spoofable, self-asserted consent record is weak GDPR evidence and no real age assurance; full_name is blank on the profile row.",
+      "fix": "Record consent server-side as immutable timestamped rows (via trigger/edge function, not client metadata) capturing policy version; copy full_name + consent from raw_user_meta_data into rosa_users in the signup trigger (add marketing_consent/gdpr_consent/gdpr_consented_at columns); add real age assurance if minors are a concern.",
+      "personas": [
+        "Backend Engineer",
+        "Security Engineer"
+      ],
+      "is_broken_function": false
+    },
+    {
+      "id": "DS-07",
+      "title": "Same user shown as photo on Home but initials on Profile",
+      "area": "design",
+      "severity": "low",
+      "location": "Home avatar backgroundImage model-1.jpg line 1846 vs Profile initials gradient 'SA' 3004-3006",
+      "problem": "The avatar is a photo in the Home header but a pink/teal initials disc on Profile.",
+      "impact": "Reads as two different identities and looks inconsistent when navigating Home\u2192Profile via the same avatar tap.",
+      "fix": "Pick one avatar treatment (photo with initials fallback) and reuse a single Avatar component in both places.",
+      "personas": [
+        "Product Designer"
+      ],
+      "is_broken_function": false
+    },
+    {
+      "id": "DS-08",
+      "title": "Workout 'close' control uses a down-chevron glyph that reads as minimise",
+      "area": "design",
+      "severity": "low",
+      "location": "WorkoutPlayerScreen header button, icon path line 2240 (aria-label 'Close')",
+      "problem": "The top-left exit button draws a downward chevron (collapse/minimise metaphor) while its aria-label and behaviour are 'Close/exit to home'.",
+      "impact": "Icon/behaviour mismatch \u2014 users may hesitate to tap it to leave, or expect it to minimise rather than end the session.",
+      "fix": "Use an X (close) or a down-caret that genuinely minimises; make the glyph match the action.",
+      "personas": [
+        "Product Designer"
+      ],
+      "is_broken_function": false
+    },
+    {
+      "id": "DS-09",
+      "title": "Inconsistent H1 type scale and card radii across screens",
+      "area": "design",
+      "severity": "low",
+      "location": "Titles Home 34px 1840, Progress 32px 2896, Programmes/Nutrition 30px 1963/2582, Profile 28px 3008; radii 14/16/20/22px (2614/523/1853/1995)",
+      "problem": "The main screen title jumps between 28/30/32/34px with no systematic reason and card radii range 14-22px without a defined scale.",
+      "impact": "Subtle but cumulative \u2014 screens feel hand-tuned rather than one system, softening the premium polish.",
+      "fix": "Define a small type scale (one H1 size, e.g. 30px) and a radius scale (e.g. 12/16/20) as tokens and apply consistently.",
+      "personas": [
+        "Product Designer"
+      ],
+      "is_broken_function": false
+    },
+    {
+      "id": "FE-16",
+      "title": "Body-stat number inputs coerce empty/invalid entries to 0, feeding the macro calc",
+      "area": "onboarding",
+      "severity": "low",
+      "location": "Step3 input onChange line 1579",
+      "problem": "onChange does update(f.key, Number(e.target.value)); clearing the field yields Number('') === 0, and any non-numeric state yields 0.",
+      "impact": "A momentarily empty height/weight sets the value to 0, which flows into BMR/TDEE (computeMatrix) producing wrong targets if submitted in that state.",
+      "fix": "Guard against empty/NaN (fall back to previous value or a sensible default) and validate min/max before using the value.",
+      "personas": [
+        "React Engineer"
+      ],
+      "is_broken_function": false
+    },
+    {
+      "id": "FE-17",
+      "title": "Decorative icons and legal links masquerade as buttons with no handlers",
+      "area": "design",
+      "severity": "low",
+      "location": "Programmes sort icon 1964-1966; ProgrammeCard bookmark 2030-2032; Nutrition bell 2583; WorkoutPlayer music icon 2243-2245; AuthScreen Privacy/Terms links 1186",
+      "problem": "A filter/sort icon, per-card bookmark, notification bell, music icon, and underlined 'Privacy Policy'/'Terms of Service' text render with button-like affordances (cursor:pointer) but carry no onClick.",
+      "impact": "Users tap expecting to filter, save, get notifications, control audio or open legal pages and nothing happens \u2014 a cluster of small dead affordances that erode trust.",
+      "fix": "Either implement the actions (filters, bookmark toggle, notifications, music, legal modal reusing TermsScreen components) or remove the affordance styling so they don't read as buttons.",
+      "personas": [
+        "Product Designer",
+        "React Engineer"
+      ],
+      "is_broken_function": true
+    },
+    {
+      "id": "FE-18",
+      "title": "onAuthStateChange handler captures a stale 'screen' value",
+      "area": "auth",
+      "severity": "low",
+      "location": "App useEffect lines 3287-3296 (deps [] at 3304)",
+      "problem": "The effect runs once with an empty dependency array, so the onAuthStateChange callback closes over the initial screen ('splash'). Its guard `if (session && (screen==='auth'||screen==='splash'))` always tests the stale value.",
+      "impact": "Post-login/redirect auto-routing only works while the captured value still matches; if the user is elsewhere when an auth event fires, routing silently won't run. Latent, masked today because OAuth reloads to splash.",
+      "fix": "Use a ref for the current screen (or a functional pattern) so the handler reads the live value.",
+      "personas": [
+        "React Engineer"
+      ],
+      "is_broken_function": false
+    },
+    {
+      "id": "FE-19",
+      "title": "Home 'SEZE tip' re-randomises on every render; tipOpen state is dead",
+      "area": "home",
+      "severity": "low",
+      "location": "HomeScreen lines 1828-1829",
+      "problem": "const tip = ROSA_TIPS[Math.floor(Math.random()*...)] is computed inline in the render body, so the quote changes on any re-render; const [tipOpen,setTipOpen] is declared but never used.",
+      "impact": "The tip flickers/changes unexpectedly on re-render; tipOpen is unused dead code.",
+      "fix": "Memoise the tip with useState(() => ...) or useMemo([]) and remove the unused tipOpen state (or wire the intended expand behaviour).",
+      "personas": [
+        "React Engineer"
+      ],
+      "is_broken_function": false
+    },
+    {
+      "id": "FE-20",
+      "title": "Terms gate can become permanently unacceptable if the content doesn't overflow",
+      "area": "onboarding",
+      "severity": "low",
+      "location": "TermsScreen handleScroll & canAccept lines 914-919; scrollbar hidden line 75",
+      "problem": "canAccept requires scrolled===true, set only by the inner div's onScroll reaching bottom. If content fits within maxHeight (short viewport, large font, accessibility zoom) onScroll never fires; the hidden scrollbar (width:0) also makes the scroll requirement non-obvious.",
+      "impact": "On some devices/settings the 'Accept & continue' button can never enable, hard-blocking the user at the very first gate.",
+      "fix": "On mount/resize, if scrollHeight <= clientHeight set scrolled=true automatically; and/or show a visible scroll affordance.",
+      "personas": [
+        "React Engineer",
+        "QA Engineer"
+      ],
+      "is_broken_function": false
+    },
+    {
+      "id": "FE-21",
+      "title": "Email/password fields don't submit on Enter",
+      "area": "auth",
+      "severity": "low",
+      "location": "AuthInput lines 1210-1226 (no form/onKeyDown)",
+      "problem": "The inputs are not inside a <form> and have no onKeyDown handler, so pressing Enter after typing the password does nothing.",
+      "impact": "Minor friction, especially on desktop/keyboard where users expect Enter to sign in.",
+      "fix": "Wrap the fields in a form with onSubmit=handleEmail, or add Enter handling to the password input.",
+      "personas": [
+        "QA Engineer"
+      ],
+      "is_broken_function": false
+    },
+    {
+      "id": "FE-22",
+      "title": "No hardware/browser back handling; workout close and detail back are hardcoded",
+      "area": "product",
+      "severity": "low",
+      "location": "App navigate line 3306; workout close 2239; detail back 2053",
+      "problem": "Navigation is state-only with no history API integration, so Android hardware back / browser back exits the app rather than going to the previous screen. Workout close always returns to home even when launched from a programme detail.",
+      "impact": "On Android PWA/browser, back gestures unexpectedly exit and navigation feels non-native and can lose context.",
+      "fix": "Integrate history.pushState per navigate and handle popstate; make workout close return to its launch screen.",
+      "personas": [
+        "QA Engineer"
+      ],
+      "is_broken_function": false
+    },
+    {
+      "id": "FE-23",
+      "title": "Workout weights can't be edited \u2014 feature stubbed out",
+      "area": "workout",
+      "severity": "low",
+      "location": "WorkoutPlayerScreen weights state line 2154; display line 2275",
+      "problem": "weights/setWeights are created and the ring displays the current weight, but there is no +/- control so setWeights is never called; users cannot record the weight they actually used.",
+      "impact": "Progressive-overload tracking (a core lifting feature) is absent; displayed weight is always the seed value.",
+      "fix": "Add +/- weight controls that call setWeights and include per-exercise weights in the rosa_sessions exercises jsonb on completion (BE-04).",
+      "personas": [
+        "QA Engineer"
+      ],
+      "is_broken_function": false
+    },
+    {
+      "id": "NU-11",
+      "title": "Duplicate protein-shake entry and several method-insensitive aliases in FOOD_DB",
+      "area": "nutrition",
+      "severity": "low",
+      "location": "FOOD_DB lines 272 & 353; aliases 269/276/336",
+      "problem": "'protein shake' appears twice. 'mozzarella' is aliased to cheddar (403 vs ~250 kcal/100g); 'smoked salmon' to fresh salmon (208 vs ~117); 'peanut butter on toast' maps to 15g peanut butter only (ignoring bread). 'handful' (0.5\u00d7 a 30g default = 15g) under-represents a ~28g nut handful.",
+      "impact": "Minor per-item inaccuracies and a duplicate record; individually small but they accumulate and reduce trust in logged totals.",
+      "fix": "De-duplicate the protein-shake row, split mozzarella/smoked-salmon into their own entries, treat compound aliases ('X on toast') as multi-item parses, and recalibrate portion-word multipliers against each item's default grams.",
+      "personas": [
+        "Nutritionist"
+      ],
+      "is_broken_function": false
+    },
+    {
+      "id": "NU-12",
+      "title": "Repeated per-quantity rounding compounds macro drift in the portion stepper",
+      "area": "nutrition",
+      "severity": "low",
+      "location": "updateParsedQty lines 2545-2551",
+      "problem": "updateParsedQty recomputes macros by multiplying already-rounded current values by a ratio each tap, rather than recomputing from base per-100g values and total grams, so repeated adjustments accumulate rounding error (stepping up then down doesn't return to the original).",
+      "impact": "Small but visible inconsistencies in logged values after portion tweaks; totals drift from the true food-DB math.",
+      "fix": "Store base per-100g values (or base grams) on each parsed item and recompute from grams*qty on every adjustment, rounding only for display.",
+      "personas": [
+        "Nutritionist"
+      ],
+      "is_broken_function": false
+    },
+    {
+      "id": "PR-08",
+      "title": "No community feature \u2014 an expected pillar for the postnatal/mum audience",
+      "area": "product",
+      "severity": "low",
+      "location": "App-wide; no community/social surface (brand voice 'We are not just mums' line 3090)",
+      "problem": "There is no community, groups, coach Q&A or shared-journey feature; the brand voice leans on shared identity but the app is entirely solo.",
+      "impact": "New mums and women rebuilding after birth strongly value peer support and accountability; competitors lean on this \u2014 a growth/retention gap.",
+      "fix": "Consider a lightweight community layer (moderated feed, milestone sharing tied to badges, or a founder/coach broadcast channel) once core journey features are solid.",
+      "personas": [
+        "Founder/Product (Rosa)"
+      ],
+      "is_broken_function": false
+    },
+    {
+      "id": "PR-09",
+      "title": "No sleep or recovery tracking despite recovery being a stated brand value",
+      "area": "product",
+      "severity": "low",
+      "location": "ROSA_TIPS 'Recovery is not weakness' line 249; no sleep/recovery feature",
+      "problem": "Copy elevates recovery as 'where the real change happens', but there is no sleep log, recovery/readiness check or rest-day guidance.",
+      "impact": "For sleep-deprived new mums, acknowledging and tracking sleep/recovery is on-mission and practically valuable; its absence leaves the messaging unsupported.",
+      "fix": "Add a simple sleep/energy check-in and rest-day guidance, and factor low recovery into training nudges (e.g. suggest a gentler session).",
+      "personas": [
+        "Founder/Product (Rosa)"
+      ],
+      "is_broken_function": false
+    },
+    {
+      "id": "SEC-06",
+      "title": "Weak password policy (6-char min, leaked-password protection off), false 'Protected by reCAPTCHA' claim, and non-functional legal links",
+      "area": "auth",
+      "severity": "low",
+      "location": "index.html:1013 (min length 6), 1185 (reCAPTCHA claim), 1186 (Privacy/Terms spans); Supabase Auth setting",
+      "problem": "The client enforces only length>=6 with no complexity/breach check; Supabase advisor reports leaked-password (HaveIBeenPwned) protection disabled. The login screen states 'Protected by reCAPTCHA' but no CAPTCHA is integrated, and the Privacy/Terms links are inert spans.",
+      "impact": "Accounts are easily brute-forceable/credential-stuffable; the reCAPTCHA text is misleading (arguably a false security representation); no bot mitigation on signup/login/reset invites automated abuse of the anon key.",
+      "fix": "Enable leaked-password protection and a stronger minimum length (>=8-10) in Supabase Auth; enable Supabase's built-in CAPTCHA (hCaptcha/Turnstile) or remove the reCAPTCHA claim; wire the Privacy/Terms links to the real content.",
+      "personas": [
+        "Product Designer",
+        "Security Engineer"
+      ],
+      "is_broken_function": false
+    }
+  ]
+}

@@ -1032,7 +1032,7 @@ function AuthScreen({ navigate, consentData }) {
       } else if (mode === 'login') {
         const { data, error: err } = await supabase.auth.signInWithPassword({ email, password });
         if (err) throw err;
-        const { data: profile } = await supabase.from('profiles').select('onboarding_complete').eq('id', data.user.id).single();
+        const { data: profile } = await supabase.from('rosa_users').select('onboarding_complete').eq('id', data.user.id).single();
         navigate(profile?.onboarding_complete ? 'home' : 'onboarding');
       } else {
         const { error: err } = await supabase.auth.resetPasswordForEmail(email, { redirectTo });
@@ -1412,19 +1412,53 @@ function OnboardingScreen({ navigate }) {
     } else if (step < TOTAL) {
       setStep(s => s + 1);
     } else {
-      // Mark onboarding complete in Supabase
+      // Persist the full onboarding profile + computed macro targets to Supabase (rosa_users)
       supabase.auth.getSession().then(({ data: { session } }) => {
         if (session) {
-          supabase.from('profiles').update({
+          const kg = answers.imperial ? (answers.weight || 143) * 0.453592 : (answers.weight || 65);
+          const cm = answers.imperial ? (answers.height || 5.4) * 30.48 : (answers.height || 165);
+          const age = 30; // TODO: collect DOB; safe default for the target demographic
+          const days = answers.daysPerWeek || 3;
+          const bmr = 10 * kg + 6.25 * cm - 5 * age - 161; // Mifflin-St Jeor (female)
+          const actF = days >= 5 ? 1.725 : days >= 3 ? 1.55 : 1.375;
+          const tdee = Math.round(bmr * actF);
+          const ls = answers.lifeStage;
+          const primaryGoal = ls === 'pregnant' ? 'pregnancy'
+            : (ls === 'new_baby' || ls === 'post_baby_6_24') ? 'postnatal'
+            : answers.goals.includes('lose_fat') ? 'weight_loss'
+            : (answers.goals.includes('build_muscle') || answers.goals.includes('booty')) ? 'muscle_gain'
+            : 'maintenance';
+          let target = tdee;
+          if (primaryGoal === 'weight_loss') target = tdee - 400;      // moderate, safe deficit
+          else if (primaryGoal === 'muscle_gain') target = tdee + 250;
+          else if (primaryGoal === 'pregnancy') target = tdee + 300;   // 2nd/3rd trimester
+          // Never prescribe an unsafe cut — floor at 1500 for postnatal/pregnancy, 1400 otherwise
+          const floor = (primaryGoal === 'postnatal' || primaryGoal === 'pregnancy') ? 1500 : 1400;
+          target = Math.max(floor, Math.round(target / 10) * 10);
+          const protein = Math.round(1.8 * kg);
+          const fat = Math.round(0.8 * kg);
+          const carbs = Math.max(0, Math.round((target - protein * 4 - fat * 9) / 4));
+          supabase.from('rosa_users').update({
             onboarding_complete: true,
             life_stage: answers.lifeStage,
             goals: answers.goals,
-            diet_type: answers.dietType,
+            goal: primaryGoal,
+            dietary_preference: answers.dietType || 'omnivore',
             allergies: answers.allergies,
-            height_cm: answers.imperial ? answers.height * 2.54 : answers.height,
-            weight_kg: answers.imperial ? answers.weight * 0.453592 : answers.weight,
             body_type: answers.bodyType,
-          }).eq('id', session.user.id);
+            height_cm: Math.round(cm),
+            starting_weight_kg: Math.round(kg * 10) / 10,
+            days_per_week: days,
+            session_length: answers.sessionLength,
+            equipment: answers.equipment,
+            activity_level: days >= 5 ? 'active' : days >= 3 ? 'moderate' : 'light',
+            tdee_kcal: tdee,
+            target_kcal: target,
+            target_protein_g: protein,
+            target_carbs_g: carbs,
+            target_fat_g: fat,
+            updated_at: new Date().toISOString(),
+          }).eq('id', session.user.id).then(({ error }) => { if (error) console.error('[onboarding save]', error.message); });
         }
       });
       navigate('home');
@@ -2200,6 +2234,26 @@ function WorkoutPlayerScreen({ navigate }) {
   };
 
   useEffect(() => () => { if (timerRef.current) clearInterval(timerRef.current); }, []);
+
+  // Log the completed session to Supabase exactly once when finished
+  const loggedRef = useRef(false);
+  useEffect(() => {
+    if (!done || loggedRef.current) return;
+    loggedRef.current = true;
+    supabase.auth.getSession().then(({ data: { session } }) => {
+      if (!session) return;
+      supabase.from('rosa_sessions').insert({
+        user_id: session.user.id,
+        programme_id: USER.programmeId,
+        session_name: TODAY_SESSION.name,
+        week: TODAY_SESSION.week,
+        day: TODAY_SESSION.day,
+        duration_mins: TODAY_SESSION.duration,
+        exercises: EXERCISES.map((e, i) => ({ name: e.name, sets: e.sets, reps: e.reps, weight: weights[i] })),
+        completed_at: new Date().toISOString(),
+      }).then(({ error }) => { if (error) console.error('[session log]', error.message); });
+    });
+  }, [done]);
 
   if (done) {
     return (
@@ -3245,7 +3299,7 @@ function DevTestButton({ screen, navigate }) {
 // ─── ROOT APP ─────────────────────────────────────────────────────────────────
 async function getProfileRoute(session) {
   try {
-    const { data } = await supabase.from('profiles').select('onboarding_complete').eq('id', session.user.id).single();
+    const { data } = await supabase.from('rosa_users').select('onboarding_complete').eq('id', session.user.id).single();
     return data?.onboarding_complete ? 'home' : 'onboarding';
   } catch (_) {
     return 'home';
