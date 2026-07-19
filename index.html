@@ -3346,6 +3346,24 @@ function ProfileScreen({ navigate }) {
             </div>
           </div>
 
+          {/* Admin — only visible to the rosa_admins allowlist */}
+          {isAdmin && (
+            <>
+              <SectionHeader>Admin</SectionHeader>
+              <GlassCard onClick={() => navigate('admin')}
+                style={{ marginBottom:'20px', display:'flex', alignItems:'center', gap:'12px', cursor:'pointer', border:'1.5px solid rgba(21,181,166,0.45)' }}>
+                <span style={{ width:'38px', height:'38px', borderRadius:'12px', background:'rgba(21,181,166,0.12)', display:'flex', alignItems:'center', justifyContent:'center', flexShrink:0 }}>
+                  <Ic name="send" size={18} color="#15B5A6" stroke={1.7} />
+                </span>
+                <span style={{ flex:1 }}>
+                  <span style={{ display:'block', fontFamily:'Inter', fontSize:'14px', fontWeight:600, color:'#1A0D14' }}>Admin panel</span>
+                  <span style={{ display:'block', fontFamily:'Inter', fontSize:'11.5px', color:'rgba(26,13,20,0.55)', marginTop:'2px' }}>Members, plans, feedback and requests</span>
+                </span>
+                <span style={{ fontFamily:'Inter', fontSize:'16px', color:'rgba(21,181,166,0.6)' }}>›</span>
+              </GlassCard>
+            </>
+          )}
+
           {/* Streak banner */}
           <StreakBanner streak={streak} style={{ marginBottom:'16px' }} />
 
@@ -3402,24 +3420,6 @@ function ProfileScreen({ navigate }) {
             ))}
           </div>
 
-          {/* Admin — only visible to the rosa_admins allowlist */}
-          {isAdmin && (
-            <>
-              <SectionHeader>Admin</SectionHeader>
-              <GlassCard onClick={() => navigate('feedback_review')}
-                style={{ marginBottom:'20px', display:'flex', alignItems:'center', gap:'12px', cursor:'pointer', border:'1.5px solid rgba(21,181,166,0.45)' }}>
-                <span style={{ width:'38px', height:'38px', borderRadius:'12px', background:'rgba(21,181,166,0.12)', display:'flex', alignItems:'center', justifyContent:'center', flexShrink:0 }}>
-                  <Ic name="send" size={18} color="#15B5A6" stroke={1.7} />
-                </span>
-                <span style={{ flex:1 }}>
-                  <span style={{ display:'block', fontFamily:'Inter', fontSize:'14px', fontWeight:600, color:'#1A0D14' }}>Review feedback</span>
-                  <span style={{ display:'block', fontFamily:'Inter', fontSize:'11.5px', color:'rgba(26,13,20,0.55)', marginTop:'2px' }}>See and triage what members are telling you</span>
-                </span>
-                <span style={{ fontFamily:'Inter', fontSize:'16px', color:'rgba(21,181,166,0.6)' }}>›</span>
-              </GlassCard>
-            </>
-          )}
-
           {/* Settings */}
           <SectionHeader>Account</SectionHeader>
           <GlassCard style={{ marginBottom:'20px' }}>
@@ -3466,6 +3466,7 @@ function FeedbackButton({ screen }) {
   const [hover, setHover]   = useState(0);
   const [msg, setMsg]       = useState('');
   const [email, setEmail]   = useState('');
+  const [category, setCategory] = useState('other');
   const [sent, setSent]     = useState(false);
   const [sending, setSending] = useState(false);
   const [errMsg, setErrMsg] = useState('');
@@ -3481,6 +3482,7 @@ function FeedbackButton({ screen }) {
         screen,
         rating,
         message:  msg.trim() || null,
+        category,
         email:    email.trim() || session?.user?.email || null,
         platform: /iPhone|iPad|iPod/.test(navigator.userAgent) ? 'ios' :
                   /Android/.test(navigator.userAgent) ? 'android' : 'web',
@@ -3488,7 +3490,7 @@ function FeedbackButton({ screen }) {
       });
       if (error) throw error;
       setSent(true);
-      setTimeout(() => { setOpen(false); setSent(false); setRating(0); setMsg(''); setEmail(''); }, 2200);
+      setTimeout(() => { setOpen(false); setSent(false); setRating(0); setMsg(''); setEmail(''); setCategory('other'); }, 2200);
     } catch (e) {
       setErrMsg((e && e.message) ? e.message : 'Could not send — please try again.');
     } finally {
@@ -3543,6 +3545,19 @@ function FeedbackButton({ screen }) {
                     style={{ width:'100%', minHeight:'80px', padding:'12px 14px', borderRadius:'14px', border:'0.5px solid rgba(224,68,134,0.4)', background:'rgba(255,255,255,0.6)', fontFamily:'Inter', fontSize:'13px', color:'#1A0D14', resize:'none', outline:'none', boxSizing:'border-box', lineHeight:1.5 }} />
                 </div>
 
+                {/* What kind of feedback — powers "most requested" in the admin panel */}
+                <div style={{ marginBottom:'18px' }}>
+                  <div style={{ fontFamily:'Inter', fontSize:'12px', fontWeight:500, color:'rgba(224,68,134,0.7)', marginBottom:'8px', textTransform:'uppercase', letterSpacing:'0.08em' }}>What's this about?</div>
+                  <div style={{ display:'flex', gap:'6px', flexWrap:'wrap' }}>
+                    {[{id:'feature',label:'Feature request'},{id:'bug',label:'Something broken'},{id:'praise',label:'Praise'},{id:'other',label:'Other'}].map(c => (
+                      <button key={c.id} onClick={() => setCategory(c.id)}
+                        style={{ padding:'7px 13px', borderRadius:'24px', fontFamily:'Inter', fontSize:'11.5px', fontWeight:500, cursor:'pointer',
+                          background: category===c.id ? '#E04486' : 'rgba(255,255,255,0.6)', color: category===c.id ? '#FFFFFF' : '#1A0D14',
+                          border: category===c.id ? 'none' : '0.5px solid rgba(224,68,134,0.3)' }}>{c.label}</button>
+                    ))}
+                  </div>
+                </div>
+
                 {/* Optional contact so we can follow up */}
                 <div style={{ marginBottom:'16px' }}>
                   <div style={{ fontFamily:'Inter', fontSize:'12px', fontWeight:500, color:'rgba(224,68,134,0.7)', marginBottom:'8px', textTransform:'uppercase', letterSpacing:'0.08em' }}>Email (optional — if you'd like a reply)</div>
@@ -3573,22 +3588,34 @@ function FeedbackButton({ screen }) {
   );
 }
 
-// ─── FEEDBACK REVIEW (admin) ──────────────────────────────────────────────────
-// Admins (rosa_admins allowlist) see every submission; everyone else sees only their own.
-function FeedbackReviewScreen({ navigate }) {
-  const [rows, setRows] = useState(null);
+// ─── ADMIN PANEL ──────────────────────────────────────────────────────────────
+// Gated on the rosa_admins allowlist. All data comes from SECURITY DEFINER RPCs
+// that re-check is_seze_admin() server-side, so this is safe even if the UI leaks.
+function AdminScreen({ navigate }) {
+  const [tab, setTab] = useState('overview');
   const [isAdmin, setIsAdmin] = useState(null);
-  const [filter, setFilter] = useState('all');
+  const [ov, setOv] = useState(null);
+  const [users, setUsers] = useState(null);
+  const [fb, setFb] = useState(null);
+  const [reqs, setReqs] = useState(null);
   const [busy, setBusy] = useState(null);
+  const [fbFilter, setFbFilter] = useState('all');
 
   const load = useCallback(async () => {
-    try { const { data: adm } = await supabase.rpc('is_seze_admin'); setIsAdmin(!!adm); }
-    catch (_) { setIsAdmin(false); }
-    const { data, error } = await supabase.from('rosa_feedback')
-      .select('id,created_at,screen,rating,message,email,status,platform,user_id')
-      .order('created_at', { ascending: false }).limit(200);
-    if (error) console.error('[feedback load]', error.message);
-    setRows(error ? [] : (data || []));
+    let admin = false;
+    try { const { data } = await supabase.rpc('is_seze_admin'); admin = !!data; } catch (_) {}
+    setIsAdmin(admin);
+    if (!admin) { setOv({}); setUsers([]); setFb([]); setReqs([]); return; }
+    const [o, u, f, r] = await Promise.all([
+      supabase.rpc('admin_overview'),
+      supabase.rpc('admin_users'),
+      supabase.from('rosa_feedback')
+        .select('id,created_at,screen,rating,message,email,status,category,platform,user_id')
+        .order('created_at', { ascending: false }).limit(300),
+      supabase.rpc('admin_requests'),
+    ]);
+    if (o.error) console.error('[admin overview]', o.error.message);
+    setOv(o.data || {}); setUsers(u.data || []); setFb(f.data || []); setReqs(r.data || []);
   }, []);
   useEffect(() => { load(); }, [load]);
 
@@ -3598,75 +3625,214 @@ function FeedbackReviewScreen({ navigate }) {
     if (error) console.error('[feedback status]', error.message);
     setBusy(null); load();
   };
+  const cyclePlan = async (u) => {
+    const next = u.plan === 'free' ? 'trial' : u.plan === 'trial' ? 'paid' : 'free';
+    setBusy(u.id);
+    const { error } = await supabase.rpc('admin_set_plan', { target: u.id, new_plan: next });
+    if (error) console.error('[set plan]', error.message);
+    setBusy(null); load();
+  };
 
-  const all = rows || [];
-  const shown = all.filter(r => filter === 'all' || (r.status || 'new') === filter);
-  const counts = all.reduce((a, r) => { const s = r.status || 'new'; a[s] = (a[s] || 0) + 1; return a; }, {});
-  const avg = all.length ? (all.reduce((a, r) => a + (r.rating || 0), 0) / all.length).toFixed(1) : '—';
+  const planColour = { free:'#6B7280', trial:'#B7791F', paid:'#15B5A6' };
+  const TABS = [
+    { id:'overview', label:'Overview' },
+    { id:'users',    label:`Users${ov && ov.total_users ? ` (${ov.total_users})` : ''}` },
+    { id:'feedback', label:`Feedback${ov && ov.feedback_new ? ` (${ov.feedback_new})` : ''}` },
+    { id:'requests', label:'Requests' },
+  ];
+
+  const shownFb = (fb || []).filter(r => fbFilter === 'all' || (r.status || 'new') === fbFilter);
+  const featureReqs = (reqs || []).filter(r => r.category === 'feature');
+
+  const Tile = ({ label, value, accent }) => (
+    <GlassCard strong style={{ textAlign:'center', padding:'14px 8px' }}>
+      <div style={{ fontFamily:'Playfair Display', fontSize:'26px', color: accent || '#1A0D14', lineHeight:1 }}>{value == null ? '—' : value}</div>
+      <div style={{ fontFamily:'Inter', fontSize:'9px', textTransform:'uppercase', letterSpacing:'0.07em', color:'rgba(224,68,134,0.65)', marginTop:'5px', lineHeight:1.3 }}>{label}</div>
+    </GlassCard>
+  );
 
   return (
     <AppBackground>
       <Screen scrollable>
         <div style={{ paddingTop:'56px', paddingBottom:'48px' }}>
           <div style={{ display:'flex', alignItems:'center', gap:'12px', marginBottom:'4px' }}>
-            <button onClick={() => navigate('home')} aria-label="Back" style={{ background:'none', border:'none', cursor:'pointer', padding:0, display:'flex' }}><BackIcon /></button>
-            <div style={{ fontFamily:'Playfair Display', fontSize:'30px', fontWeight:700, color:'#1A0D14' }}>Feedback</div>
+            <button onClick={() => navigate('profile')} aria-label="Back" style={{ background:'none', border:'none', cursor:'pointer', padding:0, display:'flex' }}><BackIcon /></button>
+            <div style={{ fontFamily:'Playfair Display', fontSize:'30px', fontWeight:700, color:'#1A0D14' }}>Admin</div>
           </div>
           <div style={{ fontFamily:'Inter', fontSize:'13px', color:'rgba(26,13,20,0.55)', marginBottom:'18px' }}>
-            {isAdmin === false ? 'Showing your own submissions. Sign in as an admin to review everyone’s.' : 'All submissions, newest first.'}
+            {isAdmin === false ? 'This area is restricted to SEZE admins.' : 'Members, revenue and what people are asking for.'}
           </div>
 
-          <div style={{ display:'flex', gap:'8px', marginBottom:'16px' }}>
-            {[{l:'Total',v:all.length},{l:'Avg rating',v:avg},{l:'New',v:counts.new||0}].map(s => (
-              <GlassCard key={s.l} strong style={{ flex:1, textAlign:'center', padding:'12px 8px' }}>
-                <div style={{ fontFamily:'Playfair Display', fontSize:'22px', color:'#1A0D14' }}>{s.v}</div>
-                <div style={{ fontFamily:'Inter', fontSize:'9px', textTransform:'uppercase', letterSpacing:'0.07em', color:'rgba(224,68,134,0.6)', marginTop:'2px' }}>{s.l}</div>
-              </GlassCard>
-            ))}
-          </div>
-
-          <div style={{ display:'flex', gap:'6px', marginBottom:'14px', overflowX:'auto', paddingBottom:'4px' }}>
-            {['all','new','reviewed','actioned','wontfix'].map(f => (
-              <button key={f} onClick={() => setFilter(f)}
-                style={{ padding:'7px 14px', borderRadius:'24px', whiteSpace:'nowrap', fontFamily:'Inter', fontSize:'11px', fontWeight:500, cursor:'pointer', flexShrink:0,
-                  background: filter===f ? '#E04486' : 'rgba(255,255,255,0.5)', color: filter===f ? '#FFFFFF' : '#1A0D14',
-                  border: filter===f ? 'none' : '0.5px solid rgba(224,68,134,0.3)' }}>{f}</button>
-            ))}
-          </div>
-
-          {rows === null && <div style={{ fontFamily:'Inter', fontSize:'13px', color:'rgba(26,13,20,0.5)' }}>Loading…</div>}
-          {rows && shown.length === 0 && (
-            <GlassCard style={{ textAlign:'center', padding:'28px 20px' }}>
-              <div style={{ fontFamily:'Playfair Display', fontSize:'15px', color:'#B72B6D', fontStyle:'italic' }}>No feedback here yet.</div>
-              <div style={{ fontFamily:'Inter', fontSize:'11px', color:'rgba(26,13,20,0.5)', marginTop:'6px' }}>Submissions appear here as soon as they come in.</div>
+          {isAdmin === false ? (
+            <GlassCard style={{ textAlign:'center', padding:'32px 20px' }}>
+              <div style={{ width:'62px', height:'62px', borderRadius:'50%', background:'rgba(224,68,134,0.1)', display:'flex', alignItems:'center', justifyContent:'center', margin:'0 auto 12px' }}>
+                <Ic name="lock" size={26} color="#E04486" stroke={1.7} />
+              </div>
+              <div style={{ fontFamily:'Playfair Display', fontSize:'18px', color:'#1A0D14' }}>Not authorised</div>
+              <div style={{ fontFamily:'Inter', fontSize:'12.5px', color:'rgba(26,13,20,0.55)', marginTop:'6px' }}>Ask an existing admin to add your email to the allowlist.</div>
             </GlassCard>
-          )}
-
-          {shown.map(r => (
-            <GlassCard key={r.id} style={{ marginBottom:'10px' }}>
-              <div style={{ display:'flex', justifyContent:'space-between', alignItems:'flex-start', gap:'10px', marginBottom:'7px' }}>
-                <div style={{ display:'flex', gap:'2px' }}>
-                  {[1,2,3,4,5].map(i => <Ic key={i} name="star" size={14} color={i<=(r.rating||0)?'#E04486':'rgba(224,68,134,0.25)'} fill={i<=(r.rating||0)?'#E04486':'none'} stroke={1.6} />)}
-                </div>
-                <span style={{ fontFamily:'Inter', fontSize:'10px', color:'rgba(26,13,20,0.45)', textAlign:'right' }}>
-                  {new Date(r.created_at).toLocaleDateString()} · {r.screen || '—'}
-                </span>
-              </div>
-              {r.message && <div style={{ fontFamily:'Inter', fontSize:'13px', color:'#1A0D14', lineHeight:1.55, marginBottom:'7px' }}>{r.message}</div>}
-              <div style={{ fontFamily:'Inter', fontSize:'11px', color:'rgba(26,13,20,0.5)', marginBottom:'10px' }}>
-                {r.email || (r.user_id ? 'signed-in user' : 'anonymous')} · {r.platform || 'web'}
-              </div>
-              <div style={{ display:'flex', gap:'6px', flexWrap:'wrap' }}>
-                {['new','reviewed','actioned','wontfix'].map(s => (
-                  <button key={s} disabled={busy===r.id} onClick={() => setStatus(r.id, s)}
-                    style={{ padding:'5px 11px', borderRadius:'20px', fontFamily:'Inter', fontSize:'10px', fontWeight:600, cursor:'pointer',
-                      background:(r.status||'new')===s ? '#15B5A6' : 'rgba(255,255,255,0.6)',
-                      color:(r.status||'new')===s ? '#FFFFFF' : 'rgba(26,13,20,0.6)',
-                      border:(r.status||'new')===s ? 'none' : '0.5px solid rgba(224,68,134,0.25)', opacity: busy===r.id ? 0.5 : 1 }}>{s}</button>
+          ) : (
+            <>
+              {/* Tabs */}
+              <div style={{ display:'flex', gap:'6px', marginBottom:'18px', overflowX:'auto', paddingBottom:'4px' }}>
+                {TABS.map(t => (
+                  <button key={t.id} onClick={() => setTab(t.id)}
+                    style={{ padding:'8px 15px', borderRadius:'24px', whiteSpace:'nowrap', fontFamily:'Inter', fontSize:'12px', fontWeight:500, cursor:'pointer', flexShrink:0,
+                      background: tab===t.id ? '#E04486' : 'rgba(255,255,255,0.5)', color: tab===t.id ? '#FFFFFF' : '#1A0D14',
+                      border: tab===t.id ? 'none' : '0.5px solid rgba(224,68,134,0.3)' }}>{t.label}</button>
                 ))}
               </div>
-            </GlassCard>
-          ))}
+
+              {ov === null && <div style={{ fontFamily:'Inter', fontSize:'13px', color:'rgba(26,13,20,0.5)' }}>Loading…</div>}
+
+              {/* OVERVIEW */}
+              {tab === 'overview' && ov && (
+                <>
+                  <SectionHeader>Members</SectionHeader>
+                  <div style={{ display:'grid', gridTemplateColumns:'repeat(3,1fr)', gap:'8px', marginBottom:'16px' }}>
+                    <Tile label="Total users" value={ov.total_users} />
+                    <Tile label="New (7d)" value={ov.new_7d} accent="#15B5A6" />
+                    <Tile label="Onboarded" value={ov.onboarded} />
+                  </div>
+                  <SectionHeader>Revenue</SectionHeader>
+                  <div style={{ display:'grid', gridTemplateColumns:'repeat(3,1fr)', gap:'8px', marginBottom:'16px' }}>
+                    <Tile label="Free" value={ov.free_users} />
+                    <Tile label="Trial" value={ov.trial_users} accent="#B7791F" />
+                    <Tile label="Paying" value={ov.paid_users} accent="#15B5A6" />
+                  </div>
+                  <SectionHeader>Engagement</SectionHeader>
+                  <div style={{ display:'grid', gridTemplateColumns:'repeat(3,1fr)', gap:'8px', marginBottom:'16px' }}>
+                    <Tile label="Active (7d)" value={ov.active_7d} accent="#15B5A6" />
+                    <Tile label="Sessions" value={ov.total_sessions} />
+                    <Tile label="Meals logged" value={ov.total_meals} />
+                  </div>
+                  <SectionHeader>Feedback</SectionHeader>
+                  <div style={{ display:'grid', gridTemplateColumns:'repeat(3,1fr)', gap:'8px', marginBottom:'16px' }}>
+                    <Tile label="Total" value={ov.feedback_total} />
+                    <Tile label="Unreviewed" value={ov.feedback_new} accent={ov.feedback_new > 0 ? '#E04486' : undefined} />
+                    <Tile label="Avg rating" value={ov.avg_rating} />
+                  </div>
+                  {ov.paid_users === 0 && (
+                    <GlassCard style={{ padding:'14px 16px' }}>
+                      <div style={{ fontFamily:'Inter', fontSize:'12.5px', color:'rgba(26,13,20,0.65)', lineHeight:1.5 }}>
+                        <b>No paying members yet.</b> Plans are tracked on the profile (free / trial / paying) — set them in the Users tab. Wire a payment provider to update this automatically.
+                      </div>
+                    </GlassCard>
+                  )}
+                </>
+              )}
+
+              {/* USERS */}
+              {tab === 'users' && (
+                <>
+                  <div style={{ fontFamily:'Inter', fontSize:'11.5px', color:'rgba(26,13,20,0.5)', marginBottom:'10px' }}>Tap a plan chip to cycle free → trial → paying.</div>
+                  {(users || []).length === 0 && (
+                    <GlassCard style={{ textAlign:'center', padding:'26px' }}>
+                      <div style={{ fontFamily:'Playfair Display', fontSize:'15px', color:'#B72B6D', fontStyle:'italic' }}>No members yet.</div>
+                    </GlassCard>
+                  )}
+                  {(users || []).map(u => (
+                    <GlassCard key={u.id} style={{ marginBottom:'8px', display:'flex', alignItems:'center', gap:'12px' }}>
+                      <div style={{ width:'38px', height:'38px', borderRadius:'50%', background:'linear-gradient(135deg,#E04486,#15B5A6)', display:'flex', alignItems:'center', justifyContent:'center', fontFamily:'Playfair Display', fontSize:'15px', color:'#FFFFFF', flexShrink:0 }}>
+                        {(u.full_name || u.email || '?').slice(0,1).toUpperCase()}
+                      </div>
+                      <div style={{ flex:1, minWidth:0 }}>
+                        <div style={{ fontFamily:'Inter', fontSize:'13px', fontWeight:600, color:'#1A0D14', whiteSpace:'nowrap', overflow:'hidden', textOverflow:'ellipsis' }}>{u.full_name || '—'}</div>
+                        <div style={{ fontFamily:'Inter', fontSize:'11px', color:'rgba(26,13,20,0.5)', whiteSpace:'nowrap', overflow:'hidden', textOverflow:'ellipsis' }}>{u.email}</div>
+                        <div style={{ fontFamily:'Inter', fontSize:'10.5px', color:'rgba(26,13,20,0.45)', marginTop:'2px' }}>
+                          {u.sessions} session{Number(u.sessions) === 1 ? '' : 's'}
+                          {u.programme_id ? ` · ${(PROGRAMMES.find(p=>p.id===u.programme_id)||{}).name || u.programme_id}` : ' · no programme'}
+                          {!u.onboarding_complete ? ' · onboarding' : ''}
+                        </div>
+                      </div>
+                      <button disabled={busy===u.id} onClick={() => cyclePlan(u)}
+                        style={{ padding:'5px 11px', borderRadius:'20px', fontFamily:'Inter', fontSize:'10px', fontWeight:700, letterSpacing:'0.06em', textTransform:'uppercase', cursor:'pointer', flexShrink:0,
+                          background:'transparent', color: planColour[u.plan] || '#6B7280', border:`1px solid ${planColour[u.plan] || '#6B7280'}`, opacity: busy===u.id ? 0.5 : 1 }}>
+                        {u.plan}
+                      </button>
+                    </GlassCard>
+                  ))}
+                </>
+              )}
+
+              {/* FEEDBACK */}
+              {tab === 'feedback' && (
+                <>
+                  <div style={{ display:'flex', gap:'6px', marginBottom:'14px', overflowX:'auto', paddingBottom:'4px' }}>
+                    {['all','new','reviewed','actioned','wontfix'].map(f => (
+                      <button key={f} onClick={() => setFbFilter(f)}
+                        style={{ padding:'7px 14px', borderRadius:'24px', whiteSpace:'nowrap', fontFamily:'Inter', fontSize:'11px', fontWeight:500, cursor:'pointer', flexShrink:0,
+                          background: fbFilter===f ? '#E04486' : 'rgba(255,255,255,0.5)', color: fbFilter===f ? '#FFFFFF' : '#1A0D14',
+                          border: fbFilter===f ? 'none' : '0.5px solid rgba(224,68,134,0.3)' }}>{f}</button>
+                    ))}
+                  </div>
+                  {shownFb.length === 0 && (
+                    <GlassCard style={{ textAlign:'center', padding:'26px' }}>
+                      <div style={{ fontFamily:'Playfair Display', fontSize:'15px', color:'#B72B6D', fontStyle:'italic' }}>Nothing here yet.</div>
+                    </GlassCard>
+                  )}
+                  {shownFb.map(r => (
+                    <GlassCard key={r.id} style={{ marginBottom:'10px' }}>
+                      <div style={{ display:'flex', justifyContent:'space-between', alignItems:'flex-start', gap:'10px', marginBottom:'7px' }}>
+                        <div style={{ display:'flex', gap:'2px' }}>
+                          {[1,2,3,4,5].map(i => <Ic key={i} name="star" size={14} color={i<=(r.rating||0)?'#E04486':'rgba(224,68,134,0.25)'} fill={i<=(r.rating||0)?'#E04486':'none'} stroke={1.6} />)}
+                        </div>
+                        <span style={{ fontFamily:'Inter', fontSize:'10px', color:'rgba(26,13,20,0.45)', textAlign:'right' }}>
+                          {new Date(r.created_at).toLocaleDateString()} · {r.screen || '—'}
+                        </span>
+                      </div>
+                      {r.message && <div style={{ fontFamily:'Inter', fontSize:'13px', color:'#1A0D14', lineHeight:1.55, marginBottom:'7px' }}>{r.message}</div>}
+                      <div style={{ fontFamily:'Inter', fontSize:'11px', color:'rgba(26,13,20,0.5)', marginBottom:'10px' }}>
+                        {r.category && r.category !== 'other' ? `${r.category} · ` : ''}{r.email || (r.user_id ? 'signed-in user' : 'anonymous')} · {r.platform || 'web'}
+                      </div>
+                      <div style={{ display:'flex', gap:'6px', flexWrap:'wrap' }}>
+                        {['new','reviewed','actioned','wontfix'].map(s => (
+                          <button key={s} disabled={busy===r.id} onClick={() => setStatus(r.id, s)}
+                            style={{ padding:'5px 11px', borderRadius:'20px', fontFamily:'Inter', fontSize:'10px', fontWeight:600, cursor:'pointer',
+                              background:(r.status||'new')===s ? '#15B5A6' : 'rgba(255,255,255,0.6)',
+                              color:(r.status||'new')===s ? '#FFFFFF' : 'rgba(26,13,20,0.6)',
+                              border:(r.status||'new')===s ? 'none' : '0.5px solid rgba(224,68,134,0.25)', opacity: busy===r.id ? 0.5 : 1 }}>{s}</button>
+                        ))}
+                      </div>
+                    </GlassCard>
+                  ))}
+                </>
+              )}
+
+              {/* REQUESTS */}
+              {tab === 'requests' && (
+                <>
+                  <SectionHeader>Most requested</SectionHeader>
+                  {featureReqs.length === 0 && (
+                    <GlassCard style={{ padding:'20px', marginBottom:'16px' }}>
+                      <div style={{ fontFamily:'Inter', fontSize:'12.5px', color:'rgba(26,13,20,0.6)', lineHeight:1.55 }}>
+                        No feature requests yet. When members pick <b>“Feature request”</b> in the feedback form, the most-asked-for things rank here.
+                      </div>
+                    </GlassCard>
+                  )}
+                  {featureReqs.map((r, i) => (
+                    <GlassCard key={`${r.category}-${r.screen}-${i}`} style={{ marginBottom:'8px', display:'flex', gap:'12px', alignItems:'flex-start' }}>
+                      <div style={{ width:'30px', height:'30px', borderRadius:'10px', background:'#E04486', color:'#FFFFFF', display:'flex', alignItems:'center', justifyContent:'center', fontFamily:'Inter', fontSize:'12px', fontWeight:700, flexShrink:0 }}>{r.cnt}</div>
+                      <div style={{ flex:1 }}>
+                        <div style={{ fontFamily:'Inter', fontSize:'13px', fontWeight:600, color:'#1A0D14' }}>{r.screen}</div>
+                        {r.sample && <div style={{ fontFamily:'Inter', fontSize:'12px', color:'rgba(26,13,20,0.6)', marginTop:'3px', lineHeight:1.5 }}>“{r.sample}”</div>}
+                      </div>
+                    </GlassCard>
+                  ))}
+
+                  <SectionHeader>All feedback by area</SectionHeader>
+                  {(reqs || []).map((r, i) => (
+                    <div key={`all-${i}`} style={{ display:'flex', alignItems:'center', gap:'10px', padding:'9px 2px', borderBottom:'0.5px solid rgba(224,68,134,0.15)' }}>
+                      <span style={{ fontFamily:'Inter', fontSize:'11px', fontWeight:700, color:'#E04486', minWidth:'22px' }}>{r.cnt}</span>
+                      <span style={{ flex:1, fontFamily:'Inter', fontSize:'12.5px', color:'#1A0D14' }}>{r.screen}</span>
+                      <span style={{ fontFamily:'Inter', fontSize:'10px', textTransform:'uppercase', letterSpacing:'0.05em', color:'rgba(26,13,20,0.45)' }}>{r.category}</span>
+                      {r.avg_rating != null && <span style={{ fontFamily:'Inter', fontSize:'11px', color:'rgba(26,13,20,0.5)' }}>★{r.avg_rating}</span>}
+                    </div>
+                  ))}
+                </>
+              )}
+            </>
+          )}
         </div>
       </Screen>
     </AppBackground>
@@ -3674,7 +3840,7 @@ function FeedbackReviewScreen({ navigate }) {
 }
 
 // ─── DEV TEST MODE BUTTON ─────────────────────────────────────────────────────
-const ALL_SCREENS = ['splash','terms','auth','onboarding','home','programmes','programme_detail','workout','nutrition','progress','profile','feedback_review'];
+const ALL_SCREENS = ['splash','terms','auth','onboarding','home','programmes','programme_detail','workout','nutrition','progress','profile','admin'];
 
 // Dev mode is always on for localhost. On production, open ?dev=1 to switch it on
 // (it sticks via localStorage for demos) and ?dev=0 to switch it back off.
@@ -3925,7 +4091,8 @@ function App() {
       case 'nutrition':      return <NutritionScreen navigate={navigate} />;
       case 'progress':       return <ProgressScreen navigate={navigate} />;
       case 'profile':        return <ProfileScreen navigate={navigate} />;
-      case 'feedback_review': return <FeedbackReviewScreen navigate={navigate} />;
+      case 'admin':           return <AdminScreen navigate={navigate} />;
+      case 'feedback_review': return <AdminScreen navigate={navigate} />;
       default:               return <SplashScreen navigate={navigate} />;
     }
   })();
