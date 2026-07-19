@@ -74,6 +74,8 @@
     .slideL   { animation: slideL 0.22s ease-out both; }
     ::-webkit-scrollbar { width: 0; }
     input, button, select { font-family: var(--rosa-font-ui); }
+    /* 16px min prevents iOS Safari auto-zoom on focus (DS-01) */
+    input, textarea, select { font-size: 16px !important; }
     button { cursor: pointer; border: none; background: none; }
     :focus-visible { outline: 2px solid #B72B6D; outline-offset: 2px; border-radius: 4px; }
     @media (prefers-reduced-motion: reduce) {
@@ -301,7 +303,8 @@ const FOOD_DB = [
   {n:'quinoa',          a:[],                                           k:120,p:4.4, c:21, f:1.9, g:185, e:'🌾',cat:'carb'},
   {n:'pasta',           a:['spaghetti','penne','linguine','fusilli','tagliatelle'], k:157,p:5.8,c:31,f:0.9,g:200,e:'🍝',cat:'carb'},
   {n:'sweet potato',    a:['sweet potatoes'],                           k:86, p:1.6, c:20, f:0.1, g:150, e:'🍠',cat:'carb'},
-  {n:'potato',          a:['potatoes','baked potato','jacket potato','mashed potato','chips'], k:77,p:2,c:17,f:0.1,g:180,e:'🥔',cat:'carb'},
+  {n:'potato',          a:['potatoes','baked potato','jacket potato','mashed potato'], k:77,p:2,c:17,f:0.1,g:180,e:'🥔',cat:'carb'},
+  {n:'chips',           a:['fries','french fries','fry','oven chips','skin-on fries'], k:312,p:3.4,c:41,f:15,g:150,e:'🍟',cat:'carb'},
   {n:'wrap',            a:['tortilla','flatbread','pitta'],             k:310,p:8,   c:51, f:7,   g:60,  e:'🫓',cat:'carb'},
   // ── Fruit
   {n:'banana',          a:['bananas'],                                  k:89, p:1.1, c:23, f:0.3, g:120, e:'🍌',cat:'fruit'},
@@ -460,22 +463,33 @@ function computeMatrix(answers) {
     secondary = 'core';
   }
 
-  // Macro calc: simple TDEE estimate
-  const height = answers.height || 165;
-  const weight = answers.weight || 65;
-  const bmr = 10 * weight + 6.25 * height - 5 * 25 - 161;
-  const activityFactor = daysPerWeek >= 5 ? 1.55 : daysPerWeek >= 3 ? 1.375 : 1.2;
+  // Macro calc — Mifflin-St Jeor (female), imperial-aware, life-stage SAFE
+  const heightCm = answers.imperial ? (answers.height || 5.4) * 30.48 : (answers.height || 165);
+  const weightKg = answers.imperial ? (answers.weight || 143) * 0.453592 : (answers.weight || 65);
+  const age = answers.age || 30; // TODO collect DOB; safe demographic default
+  const bmr = 10 * weightKg + 6.25 * heightCm - 5 * age - 161;
+  const activityFactor = daysPerWeek >= 5 ? 1.725 : daysPerWeek >= 3 ? 1.55 : 1.375;
   const tdee = Math.round(bmr * activityFactor);
-  const deficit = goals.includes('lose_fat') ? -300 : goals.includes('build_muscle') ? 200 : 0;
-  const kcal = tdee + deficit;
-  const protein = Math.round(weight * 2.0);
-  const fat = Math.round((kcal * 0.28) / 9);
-  const carbs = Math.round((kcal - protein * 4 - fat * 9) / 4);
+  // SAFETY: never prescribe a deficit for pregnancy or the breastfeeding window; add energy for both.
+  const isPregnant = lifeStage === 'pregnant';
+  const isNewMum   = lifeStage === 'new_baby';
+  let kcal;
+  if (isPregnant)                 kcal = tdee + 300;   // 2nd/3rd trimester energy need
+  else if (isNewMum)              kcal = tdee + 330;   // lactation support
+  else if (goals.includes('lose_fat'))                              kcal = tdee - 400;
+  else if (goals.includes('build_muscle') || goals.includes('booty')) kcal = tdee + 250;
+  else                            kcal = tdee;
+  // Hard minimum floor — higher for perinatal stages, never below ~1300 for anyone
+  const floor = (isPregnant || isNewMum || lifeStage === 'post_baby_6_24') ? 1600 : 1300;
+  kcal = Math.max(floor, Math.round(kcal / 10) * 10);
+  const protein = Math.round(weightKg * 1.8);
+  const fat = Math.round(weightKg * 0.8);
+  const carbs = Math.max(50, Math.round((kcal - protein * 4 - fat * 9) / 4)); // clamp, never negative
 
   const prog = PROGRAMMES.find(p => p.id === primary);
   const sec  = secondary ? PROGRAMMES.find(p => p.id === secondary) : null;
 
-  return { primary: prog, secondary: sec, reason, kcal, protein, carbs, fat };
+  return { primary: prog, secondary: sec, reason, tdee, kcal, protein, carbs, fat };
 }
 
 
@@ -978,8 +992,8 @@ function ConsentRow({ checked, onChange, label, required }) {
 }
 
 // ── Login / Signup Screen ─────────────────────────────────────────────────────
-function AuthScreen({ navigate, consentData }) {
-  const [mode, setMode] = useState('login'); // 'login' | 'signup' | 'forgot'
+function AuthScreen({ navigate, consentData, params }) {
+  const [mode, setMode] = useState(params?.mode || 'login'); // 'login' | 'signup' | 'forgot'
   const [email, setEmail] = useState('');
   const [password, setPassword] = useState('');
   const [name, setName] = useState('');
@@ -1032,7 +1046,7 @@ function AuthScreen({ navigate, consentData }) {
       } else if (mode === 'login') {
         const { data, error: err } = await supabase.auth.signInWithPassword({ email, password });
         if (err) throw err;
-        const { data: profile } = await supabase.from('rosa_users').select('onboarding_complete').eq('id', data.user.id).single();
+        const { data: profile } = await supabase.from('rosa_users').select('onboarding_complete').eq('id', data.user.id).maybeSingle();
         navigate(profile?.onboarding_complete ? 'home' : 'onboarding');
       } else {
         const { error: err } = await supabase.auth.resetPasswordForEmail(email, { redirectTo });
@@ -1071,8 +1085,8 @@ function AuthScreen({ navigate, consentData }) {
           <div style={{ fontFamily:'Inter', fontSize:'14px', fontWeight:300, color:'rgba(224,68,134,0.7)', lineHeight:1.7, marginBottom:'32px' }}>
             We've sent a verification link to <strong style={{ color:'#1A0D14' }}>{email}</strong>. Click it to activate your account, then come back here.
           </div>
-          <PillButton variant="teal" onClick={() => navigate('home')} style={{ width:'100%', maxWidth:'280px', padding:'14px' }}>
-            I've verified — continue →
+          <PillButton variant="teal" onClick={() => navigate('onboarding')} style={{ width:'100%', maxWidth:'280px', padding:'14px' }}>
+            I've verified — continue
           </PillButton>
           <button onClick={() => setMode('login')} style={{ fontFamily:'Inter', fontSize:'12px', color:'rgba(224,68,134,0.6)', background:'none', border:'none', cursor:'pointer', marginTop:'16px' }}>
             Back to login
@@ -1117,8 +1131,8 @@ function AuthScreen({ navigate, consentData }) {
         {mode !== 'forgot' && (
           <div style={{ display:'flex', flexDirection:'column', gap:'10px', marginBottom:'20px' }}>
             <OAuthButton provider="google" label="Continue with Google" loading={loading==='google'} onClick={() => handleOAuth('google')} />
-            <OAuthButton provider="apple"  label="Continue with Apple"  loading={loading==='apple'}  onClick={() => handleOAuth('apple')} />
-            <OAuthButton provider="facebook" label="Continue with Meta" loading={loading==='facebook'} onClick={() => handleOAuth('facebook')} />
+            <OAuthButton provider="apple"  label="Continue with Apple"  comingSoon />
+            <OAuthButton provider="facebook" label="Continue with Meta" comingSoon />
           </div>
         )}
 
@@ -1192,16 +1206,17 @@ function AuthScreen({ navigate, consentData }) {
 }
 
 // ── OAuth Button ──────────────────────────────────────────────────────────────
-function OAuthButton({ provider, label, onClick, loading }) {
+function OAuthButton({ provider, label, onClick, loading, comingSoon }) {
   const icons = {
     google:   <svg width="18" height="18" viewBox="0 0 24 24"><path d="M22.56 12.25c0-.78-.07-1.53-.2-2.25H12v4.26h5.92c-.26 1.37-1.04 2.53-2.21 3.31v2.77h3.57c2.08-1.92 3.28-4.74 3.28-8.09z" fill="#4285F4"/><path d="M12 23c2.97 0 5.46-.98 7.28-2.66l-3.57-2.77c-.98.66-2.23 1.06-3.71 1.06-2.86 0-5.29-1.93-6.16-4.53H2.18v2.84C3.99 20.53 7.7 23 12 23z" fill="#34A853"/><path d="M5.84 14.09c-.22-.66-.35-1.36-.35-2.09s.13-1.43.35-2.09V7.07H2.18C1.43 8.55 1 10.22 1 12s.43 3.45 1.18 4.93l3.66-2.84z" fill="#FBBC05"/><path d="M12 5.38c1.62 0 3.06.56 4.21 1.64l3.15-3.15C17.45 2.09 14.97 1 12 1 7.7 1 3.99 3.47 2.18 7.07l3.66 2.84c.87-2.6 3.3-4.53 6.16-4.53z" fill="#EA4335"/></svg>,
     apple:    <svg width="18" height="18" viewBox="0 0 24 24" fill="#000"><path d="M18.71 19.5c-.83 1.24-1.71 2.45-3.05 2.47-1.34.03-1.77-.79-3.29-.79-1.53 0-2 .77-3.27.82-1.31.05-2.3-1.32-3.14-2.53C4.25 17 2.94 12.45 4.7 9.39c.87-1.52 2.43-2.48 4.12-2.51 1.28-.02 2.5.87 3.29.87.78 0 2.26-1.07 3.8-.91.65.03 2.47.26 3.64 1.98l-.09.06c-.22.14-2.18 1.27-2.16 3.8.03 3.02 2.65 4.03 2.68 4.04l-.07.28zM13 3.5c.73-.83 1.94-1.46 2.94-1.5.13 1.17-.34 2.35-1.04 3.19-.69.85-1.83 1.51-2.95 1.42-.15-1.15.41-2.35 1.05-3.11z"/></svg>,
     facebook: <svg width="18" height="18" viewBox="0 0 24 24" fill="#1877F2"><path d="M24 12.073c0-6.627-5.373-12-12-12s-12 5.373-12 12c0 5.99 4.388 10.954 10.125 11.854v-8.385H7.078v-3.47h3.047V9.43c0-3.007 1.792-4.669 4.533-4.669 1.312 0 2.686.235 2.686.235v2.953H15.83c-1.491 0-1.956.925-1.956 1.874v2.25h3.328l-.532 3.47h-2.796v8.385C19.612 23.027 24 18.062 24 12.073z"/></svg>,
   };
   return (
-    <GlassCard strong onClick={onClick} style={{ display:'flex', alignItems:'center', justifyContent:'center', gap:'12px', padding:'13px', cursor:'pointer' }}>
+    <GlassCard strong onClick={comingSoon ? undefined : onClick} style={{ display:'flex', alignItems:'center', justifyContent:'center', gap:'12px', padding:'13px', cursor: comingSoon ? 'default' : 'pointer', opacity: comingSoon ? 0.5 : 1, position:'relative' }}>
       {loading ? <div style={{ width:'18px', height:'18px', borderRadius:'50%', border:'2px solid rgba(224,68,134,0.25)', borderTopColor:'#E04486', animation:'spin 0.8s linear infinite' }} /> : icons[provider]}
       <span style={{ fontFamily:'Inter', fontSize:'13px', fontWeight:500, color:'#1A0D14' }}>{label}</span>
+      {comingSoon && <span style={{ position:'absolute', right:'12px', fontFamily:'Inter', fontSize:'9px', fontWeight:600, textTransform:'uppercase', letterSpacing:'0.06em', color:'rgba(224,68,134,0.65)', background:'rgba(224,68,134,0.1)', padding:'2px 7px', borderRadius:'8px' }}>Soon</span>}
     </GlassCard>
   );
 }
@@ -1412,56 +1427,44 @@ function OnboardingScreen({ navigate }) {
     } else if (step < TOTAL) {
       setStep(s => s + 1);
     } else {
-      // Persist the full onboarding profile + computed macro targets to Supabase (rosa_users)
+      // Persist the full onboarding profile + computed macro targets to Supabase (rosa_users).
+      // Single source of truth = computeMatrix (safe, life-stage aware). Upsert so a missing row is created.
       supabase.auth.getSession().then(({ data: { session } }) => {
-        if (session) {
-          const kg = answers.imperial ? (answers.weight || 143) * 0.453592 : (answers.weight || 65);
-          const cm = answers.imperial ? (answers.height || 5.4) * 30.48 : (answers.height || 165);
-          const age = 30; // TODO: collect DOB; safe default for the target demographic
-          const days = answers.daysPerWeek || 3;
-          const bmr = 10 * kg + 6.25 * cm - 5 * age - 161; // Mifflin-St Jeor (female)
-          const actF = days >= 5 ? 1.725 : days >= 3 ? 1.55 : 1.375;
-          const tdee = Math.round(bmr * actF);
-          const ls = answers.lifeStage;
-          const primaryGoal = ls === 'pregnant' ? 'pregnancy'
-            : (ls === 'new_baby' || ls === 'post_baby_6_24') ? 'postnatal'
-            : answers.goals.includes('lose_fat') ? 'weight_loss'
-            : (answers.goals.includes('build_muscle') || answers.goals.includes('booty')) ? 'muscle_gain'
-            : 'maintenance';
-          let target = tdee;
-          if (primaryGoal === 'weight_loss') target = tdee - 400;      // moderate, safe deficit
-          else if (primaryGoal === 'muscle_gain') target = tdee + 250;
-          else if (primaryGoal === 'pregnancy') target = tdee + 300;   // 2nd/3rd trimester
-          // Never prescribe an unsafe cut — floor at 1500 for postnatal/pregnancy, 1400 otherwise
-          const floor = (primaryGoal === 'postnatal' || primaryGoal === 'pregnancy') ? 1500 : 1400;
-          target = Math.max(floor, Math.round(target / 10) * 10);
-          const protein = Math.round(1.8 * kg);
-          const fat = Math.round(0.8 * kg);
-          const carbs = Math.max(0, Math.round((target - protein * 4 - fat * 9) / 4));
-          supabase.from('rosa_users').update({
-            onboarding_complete: true,
-            life_stage: answers.lifeStage,
-            goals: answers.goals,
-            goal: primaryGoal,
-            dietary_preference: answers.dietType || 'omnivore',
-            allergies: answers.allergies,
-            body_type: answers.bodyType,
-            height_cm: Math.round(cm),
-            starting_weight_kg: Math.round(kg * 10) / 10,
-            days_per_week: days,
-            session_length: answers.sessionLength,
-            equipment: answers.equipment,
-            activity_level: days >= 5 ? 'active' : days >= 3 ? 'moderate' : 'light',
-            tdee_kcal: tdee,
-            target_kcal: target,
-            target_protein_g: protein,
-            target_carbs_g: carbs,
-            target_fat_g: fat,
-            updated_at: new Date().toISOString(),
-          }).eq('id', session.user.id).then(({ error }) => { if (error) console.error('[onboarding save]', error.message); });
-        }
+        if (!session) { navigate('home'); return; }
+        const m = matrix || computeMatrix(answers);
+        const kg = answers.imperial ? (answers.weight || 143) * 0.453592 : (answers.weight || 65);
+        const cm = answers.imperial ? (answers.height || 5.4) * 30.48 : (answers.height || 165);
+        const days = answers.daysPerWeek || 3;
+        const ls = answers.lifeStage;
+        const primaryGoal = ls === 'pregnant' ? 'pregnancy'
+          : (ls === 'new_baby' || ls === 'post_baby_6_24') ? 'postnatal'
+          : answers.goals.includes('lose_fat') ? 'weight_loss'
+          : (answers.goals.includes('build_muscle') || answers.goals.includes('booty')) ? 'muscle_gain'
+          : 'maintenance';
+        supabase.from('rosa_users').upsert({
+          id: session.user.id,
+          onboarding_complete: true,
+          life_stage: answers.lifeStage,
+          goals: answers.goals,
+          goal: primaryGoal,
+          dietary_preference: answers.dietType || 'omnivore',
+          allergies: answers.allergies,
+          body_type: answers.bodyType,
+          programme_id: m.primary && m.primary.id,
+          height_cm: Math.round(cm),
+          starting_weight_kg: Math.round(kg * 10) / 10,
+          days_per_week: days,
+          session_length: answers.sessionLength,
+          equipment: answers.equipment,
+          activity_level: days >= 5 ? 'active' : days >= 3 ? 'moderate' : 'light',
+          tdee_kcal: m.tdee,
+          target_kcal: m.kcal,
+          target_protein_g: m.protein,
+          target_carbs_g: m.carbs,
+          target_fat_g: m.fat,
+          updated_at: new Date().toISOString(),
+        }, { onConflict: 'id' }).then(({ error }) => { if (error) console.error('[onboarding save]', error.message); navigate('home'); });
       });
-      navigate('home');
     }
   };
   const back = () => step > 1 && setStep(s => s - 1);
@@ -1859,10 +1862,14 @@ function Step7({ revealing, revealed, matrix }) {
 // === screens-home-programmes.js ===
 // ─── HOME SCREEN ──────────────────────────────────────────────────────────────
 function HomeScreen({ navigate }) {
-  const tip = ROSA_TIPS[Math.floor(Math.random() * ROSA_TIPS.length)];
-  const [tipOpen, setTipOpen] = useState(false);
+  const app = useAppData();
+  const [tip] = useState(() => ROSA_TIPS[Math.floor(Math.random() * ROSA_TIPS.length)]);
   const hour = new Date().getHours();
   const greeting = hour < 12 ? 'Good morning' : hour < 17 ? 'Good afternoon' : 'Good evening';
+  const name = app?.firstName || USER.name;
+  const streak = app?.streak ?? USER.streak;
+  const kcalToday = app?.todayTotals?.kcal ?? USER.macros.kcal;
+  const kcalTarget = app?.profile?.target_kcal || USER.macros.kcalTarget;
 
   return (
     <AppBackground>
@@ -1871,10 +1878,10 @@ function HomeScreen({ navigate }) {
         <div style={{ paddingTop:'56px', marginBottom:'18px', display:'flex', justifyContent:'space-between', alignItems:'flex-start' }}>
           <div>
             <div style={{ fontFamily:'Inter', fontSize:'15px', fontWeight:400, color:'rgba(26,13,20,0.5)' }}>{greeting},</div>
-            <div style={{ fontFamily:'Playfair Display', fontSize:'34px', color:'#1A0D14', lineHeight:1.05 }}>{USER.name}</div>
+            <div style={{ fontFamily:'Playfair Display', fontSize:'34px', color:'#1A0D14', lineHeight:1.05, textTransform:'capitalize' }}>{name}</div>
             <div style={{ display:'inline-flex', alignItems:'center', gap:'6px', marginTop:'12px', padding:'7px 13px', borderRadius:'50px', background:'#FFF0E1', border:'1px solid #FFE1C4' }}>
               <Ic name="flame" size={14} color="#D97A2B" fill="#D97A2B" stroke={1.3} />
-              <span style={{ fontFamily:'Inter', fontSize:'12px', fontWeight:600, color:'#D97A2B' }}>{USER.streak} day streak</span>
+              <span style={{ fontFamily:'Inter', fontSize:'12px', fontWeight:600, color:'#D97A2B' }}>{streak} day streak</span>
             </div>
           </div>
           <div onClick={() => navigate('profile')} style={{ width:'54px', height:'54px', borderRadius:'50%', backgroundImage:"url('photos/model-1.jpg')", backgroundSize:'cover', backgroundPosition:'center 20%', border:'2.5px solid #15B5A6', boxShadow:'0 3px 10px rgba(0,0,0,0.12)', cursor:'pointer', flexShrink:0 }} />
@@ -1903,14 +1910,14 @@ function HomeScreen({ navigate }) {
 
         {/* Nutrition card */}
         {(() => {
-          const kpct = Math.min(USER.macros.kcal / USER.macros.kcalTarget, 1);
+          const kpct = Math.min(kcalToday / kcalTarget, 1);
           const R = 26, C = 2 * Math.PI * R;
           return (
             <div onClick={() => navigate('nutrition')} style={{ position:'relative', borderRadius:'22px', overflow:'hidden', marginBottom:'22px', background:'linear-gradient(115deg,#E04486 0%,#B72B6D 100%)', padding:'22px', display:'flex', alignItems:'center', justifyContent:'space-between', cursor:'pointer', boxShadow:'0 10px 26px rgba(224,68,134,0.26)' }}>
               <div>
                 <div style={{ fontFamily:'Inter', fontSize:'10px', fontWeight:600, letterSpacing:'0.16em', color:'rgba(255,255,255,0.85)', marginBottom:'7px' }}>NUTRITION</div>
                 <div style={{ fontFamily:'Playfair Display', fontSize:'23px', color:'#FFFFFF', lineHeight:1.12, marginBottom:'8px' }}>Today's Fuel</div>
-                <div style={{ fontFamily:'Inter', fontSize:'12px', fontWeight:500, color:'rgba(255,255,255,0.92)' }}>{USER.macros.kcal} / {USER.macros.kcalTarget} kcal</div>
+                <div style={{ fontFamily:'Inter', fontSize:'12px', fontWeight:500, color:'rgba(255,255,255,0.92)' }}>{kcalToday} / {kcalTarget} kcal</div>
               </div>
               <svg width="70" height="70" viewBox="0 0 70 70" style={{ flexShrink:0 }}>
                 <circle cx="35" cy="35" r={R} fill="none" stroke="rgba(255,255,255,0.3)" strokeWidth="6" />
@@ -2529,6 +2536,7 @@ function MenuScannerTab({ userGoal }) {
 }
 
 function NutritionScreen({ navigate }) {
+  const app = useAppData();
   const [tab, setTab] = useState('log');
   const [dietFilter, setDietFilter] = useState('All');
   const [selectedMeal, setSelectedMeal] = useState(null);
@@ -2538,12 +2546,25 @@ function NutritionScreen({ navigate }) {
   const [aiInput, setAiInput] = useState('');
   const [aiState, setAiState] = useState('idle'); // idle | thinking | review | photo
   const [parsedItems, setParsedItems] = useState([]);
-  const [loggedItems, setLoggedItems] = useState(() =>
-    MEALS_TODAY.map(m => ({ ...m, _id: m.id, slot: m.time < '11:00' ? 'breakfast' : m.time < '15:00' ? 'lunch' : 'snack', time: m.time }))
-  );
+  const [loggedItems, setLoggedItems] = useState([]);
+  // Load today's real logged meals from Supabase (via the app data provider)
+  useEffect(() => {
+    if (!app || !app.meals) return;
+    setLoggedItems(app.meals.map((m, i) => ({
+      _id: m.id || `srv-${i}`, name: m.meal_name, slot: m.meal_type || 'snack',
+      time: (m.logged_at || '').slice(11, 16),
+      kcal: m.kcal || 0, protein: Number(m.protein) || 0, carbs: Number(m.carbs) || 0, fat: Number(m.fat) || 0,
+      portions: m.portions,
+    })));
+  }, [app && app.meals]);
 
   const totals = loggedItems.reduce((a,m) => ({ kcal:a.kcal+m.kcal, protein:a.protein+m.protein, carbs:a.carbs+m.carbs, fat:a.fat+m.fat }), { kcal:0, protein:0, carbs:0, fat:0 });
-  const targets = { kcal:USER.macros.kcalTarget, protein:USER.macros.proteinTarget, carbs:USER.macros.carbsTarget, fat:USER.macros.fatTarget };
+  const targets = {
+    kcal: (app && app.profile && app.profile.target_kcal) || USER.macros.kcalTarget,
+    protein: (app && app.profile && app.profile.target_protein_g) || USER.macros.proteinTarget,
+    carbs: (app && app.profile && app.profile.target_carbs_g) || USER.macros.carbsTarget,
+    fat: (app && app.profile && app.profile.target_fat_g) || USER.macros.fatTarget,
+  };
 
   const submitAI = (inputText) => {
     const t = (inputText || aiInput).trim();
@@ -2571,22 +2592,16 @@ function NutritionScreen({ navigate }) {
     setAiInput('');
     setAiState('idle');
     supabase.auth.getSession().then(({ data: { session } }) => {
-      if (session) {
-        newItems.forEach(item => {
-          supabase.from('rosa_nutrition_logs').insert({
-            user_id:    session.user.id,
-            meal_name:  item.name,
-            meal_type:  slot,
-            logged_date: loggedDate,
-            kcal:       item.kcal,
-            protein:    item.protein,
-            carbs:      item.carbs,
-            fat:        item.fat,
-            portions:   item.displayQty || 1,
-            source:     item.source || 'text_ai',
-          });
-        });
-      }
+      if (!session) return;
+      const rows = newItems.map(item => ({
+        user_id: session.user.id, meal_name: item.name, meal_type: slot, logged_date: loggedDate,
+        kcal: Math.round(item.kcal), protein: item.protein, carbs: item.carbs, fat: item.fat,
+        portions: item.displayQty || 1, source: item.source || 'text_ai',
+      }));
+      supabase.from('rosa_nutrition_logs').insert(rows).then(({ error }) => {
+        if (error) console.error('[nutrition log]', error.message);
+        else if (app && app.refresh) app.refresh();
+      });
     });
   };
 
@@ -2619,6 +2634,15 @@ function NutritionScreen({ navigate }) {
         const timeStr = `${String(now.getHours()).padStart(2,'0')}:${String(now.getMinutes()).padStart(2,'0')}`;
         setLoggedItems(l => [...l, { ...selectedMeal, _id: Date.now(), slot: getMealSlot(), time: timeStr }]);
         setKitchenLogged(l => [...l, selectedMeal.id]);
+        supabase.auth.getSession().then(({ data: { session } }) => {
+          if (!session) return;
+          supabase.from('rosa_nutrition_logs').insert({
+            user_id: session.user.id, meal_name: selectedMeal.name, meal_type: getMealSlot(),
+            logged_date: now.toISOString().split('T')[0],
+            kcal: selectedMeal.kcal, protein: selectedMeal.protein, carbs: selectedMeal.carbs, fat: selectedMeal.fat,
+            portions: 1, source: 'manual',
+          }).then(({ error }) => { if (error) console.error('[kitchen log]', error.message); else if (app && app.refresh) app.refresh(); });
+        });
         setSelectedMeal(null);
       }}
       logged={kitchenLogged.includes(selectedMeal.id)} />;
@@ -3046,7 +3070,11 @@ function ProgressScreen({ navigate }) {
 
 // ─── PROFILE SCREEN ───────────────────────────────────────────────────────────
 function ProfileScreen({ navigate }) {
-  const initials = USER.name.slice(0, 2).toUpperCase();
+  const app = useAppData();
+  const fullName = (app && app.profile && app.profile.full_name) || (app && app.firstName) || USER.name;
+  const initials = fullName.slice(0, 2).toUpperCase();
+  const streak = (app && app.streak != null) ? app.streak : USER.streak;
+  const sessions = (app && app.sessionCount != null) ? app.sessionCount : WEEKLY_DATA.reduce((a,d)=>a+d.sessions,0);
   const [settingsOpen, setSettingsOpen] = useState(false);
 
   return (
@@ -3059,20 +3087,20 @@ function ProfileScreen({ navigate }) {
               {initials}
             </div>
             <div>
-              <div style={{ fontFamily:'Playfair Display', fontSize:'28px', color:'#1A0D14', lineHeight:1.1 }}>{USER.name}</div>
-              <div style={{ fontFamily:'Inter', fontSize:'13px', color:'rgba(224,68,134,0.7)', marginTop:'3px' }}>Active: {USER.programme}</div>
-              <div style={{ fontFamily:'Inter', fontSize:'12px', color:'rgba(224,68,134,0.55)', marginTop:'2px' }}>Week {USER.programmeWeek}</div>
+              <div style={{ fontFamily:'Playfair Display', fontSize:'28px', color:'#1A0D14', lineHeight:1.1, textTransform:'capitalize' }}>{fullName}</div>
+              <div style={{ fontFamily:'Inter', fontSize:'13px', color:'rgba(224,68,134,0.7)', marginTop:'3px' }}>{(app && app.profile && app.profile.programme_id) ? `Active: ${(PROGRAMMES.find(p=>p.id===app.profile.programme_id)||{}).name || 'Your programme'}` : 'Your journey starts here'}</div>
+              {app && app.email && <div style={{ fontFamily:'Inter', fontSize:'12px', color:'rgba(224,68,134,0.55)', marginTop:'2px' }}>{app.email}</div>}
             </div>
           </div>
 
           {/* Streak banner */}
-          <StreakBanner streak={USER.streak} style={{ marginBottom:'16px' }} />
+          <StreakBanner streak={streak} style={{ marginBottom:'16px' }} />
 
           {/* Stats grid */}
           <SectionHeader>Your stats</SectionHeader>
           <div style={{ display:'grid', gridTemplateColumns:'1fr 1fr', gap:'10px', marginBottom:'20px' }}>
-            {[{label:'Day streak',    value:USER.streak,                   icon:'flame'},
-              {label:'Sessions',      value:WEEKLY_DATA.reduce((a,d)=>a+d.sessions,0), icon:'dumbbell'},
+            {[{label:'Day streak',    value:streak,                        icon:'flame'},
+              {label:'Sessions',      value:sessions,                      icon:'dumbbell'},
               {label:'Badges',        value:USER.earnedBadges.length,      icon:'trophy'},
               {label:'Programme',     value:`${Math.round(USER.programmeProgress*100)}%`, icon:'bolt'}].map(s => (
               <GlassCard key={s.label} strong style={{ display:'flex', alignItems:'center', gap:'12px' }}>
@@ -3145,6 +3173,12 @@ function ProfileScreen({ navigate }) {
             </div>
             <div style={{ fontFamily:'Inter', fontSize:'11px', color:'rgba(224,68,134,0.45)', marginTop:'8px' }}>— SEZE</div>
           </GlassCard>
+
+          {/* Sign out */}
+          <button onClick={() => app && app.signOut && app.signOut()} style={{ width:'100%', padding:'14px', borderRadius:'24px', background:'rgba(224,68,134,0.08)', border:'1px solid rgba(224,68,134,0.2)', color:'#E04486', fontFamily:'Inter', fontSize:'14px', fontWeight:600, cursor:'pointer', marginBottom:'8px' }}>
+            Sign out
+          </button>
+          <div style={{ textAlign:'center', fontFamily:'Inter', fontSize:'10px', color:'rgba(26,13,20,0.35)', marginBottom:'12px' }}>SEZE v1.0.0 · beta</div>
         </div>
       </Screen>
       <BottomNav active="profile" navigate={navigate} />
@@ -3299,11 +3333,55 @@ function DevTestButton({ screen, navigate }) {
 // ─── ROOT APP ─────────────────────────────────────────────────────────────────
 async function getProfileRoute(session) {
   try {
-    const { data } = await supabase.from('rosa_users').select('onboarding_complete').eq('id', session.user.id).single();
+    const { data } = await supabase.from('rosa_users').select('onboarding_complete').eq('id', session.user.id).maybeSingle();
     return data?.onboarding_complete ? 'home' : 'onboarding';
   } catch (_) {
     return 'home';
   }
+}
+
+// Real user data provider — replaces the hardcoded USER mock once a session exists.
+const AppDataCtx = React.createContext(null);
+const useAppData = () => React.useContext(AppDataCtx);
+
+function computeStreak(isoDates) {
+  const days = new Set((isoDates || []).map(d => new Date(d).toISOString().split('T')[0]));
+  if (days.size === 0) return 0;
+  let streak = 0;
+  const cur = new Date();
+  // allow the streak to count from today or yesterday
+  if (!days.has(cur.toISOString().split('T')[0])) cur.setDate(cur.getDate() - 1);
+  for (;;) {
+    if (days.has(cur.toISOString().split('T')[0])) { streak++; cur.setDate(cur.getDate() - 1); }
+    else break;
+  }
+  return streak;
+}
+
+async function loadUserData() {
+  const { data: { session } } = await supabase.auth.getSession();
+  if (!session) return null;
+  const uid = session.user.id;
+  const today = new Date().toISOString().split('T')[0];
+  const [pRes, mRes, sRes] = await Promise.all([
+    supabase.from('rosa_users').select('*').eq('id', uid).maybeSingle(),
+    supabase.from('rosa_nutrition_logs').select('kcal,protein,carbs,fat,meal_name,meal_type,portions,logged_at').eq('user_id', uid).eq('logged_date', today).order('logged_at', { ascending: true }),
+    supabase.from('rosa_sessions').select('completed_at').eq('user_id', uid).order('completed_at', { ascending: false }).limit(90),
+  ]);
+  const meals = mRes.data || [];
+  const totals = meals.reduce((a, m) => ({
+    kcal: a.kcal + (m.kcal || 0), protein: a.protein + Number(m.protein || 0),
+    carbs: a.carbs + Number(m.carbs || 0), fat: a.fat + Number(m.fat || 0),
+  }), { kcal: 0, protein: 0, carbs: 0, fat: 0 });
+  const sessions = sRes.data || [];
+  return {
+    profile: pRes.data || null,
+    email: session.user.email,
+    firstName: (pRes.data?.full_name || session.user.email || 'there').split(' ')[0].split('@')[0],
+    meals, todayTotals: totals,
+    sessionCount: sessions.length,
+    streak: computeStreak(sessions.map(s => s.completed_at)),
+  };
 }
 
 function App() {
@@ -3311,6 +3389,11 @@ function App() {
   const [params, setParams] = useState({});
   const [consentData, setConsentData] = useState(null);
   const [authChecked, setAuthChecked] = useState(false);
+  const [data, setData] = useState(null);
+  const screenRef = useRef('splash');
+  screenRef.current = screen;
+  const refresh = useCallback(() => { loadUserData().then(d => { if (d) setData(d); }).catch(() => {}); }, []);
+  const signOut = useCallback(async () => { try { await supabase.auth.signOut(); } catch (_) {} setData(null); setScreen('splash'); }, []);
 
   useEffect(() => {
     let done = false;
@@ -3327,6 +3410,7 @@ function App() {
     supabase.auth.getSession()
       .then(async ({ data: { session } }) => {
         if (session) {
+          loadUserData().then(d => { if (d) setData(d); }).catch(() => {});
           const dest = await getProfileRoute(session);
           finish(dest);
         } else {
@@ -3339,7 +3423,8 @@ function App() {
     let subscription;
     try {
       const { data } = supabase.auth.onAuthStateChange(async (_event, session) => {
-        if (session && (screen === 'auth' || screen === 'splash')) {
+        if (session && (screenRef.current === 'auth' || screenRef.current === 'splash')) {
+          loadUserData().then(d => { if (d) setData(d); }).catch(() => {});
           try {
             const dest = await getProfileRoute(session);
             setScreen(dest);
@@ -3361,11 +3446,12 @@ function App() {
     setParams(p);
     setScreen(dest);
     window.scrollTo(0, 0);
+    if (['home', 'nutrition', 'progress', 'profile'].includes(dest)) refresh();
   };
 
   const handleTermsAccept = (consent) => {
     setConsentData(consent);
-    navigate('auth');
+    navigate('auth', { mode: 'signup' });
   };
 
   if (!authChecked) {
@@ -3384,7 +3470,7 @@ function App() {
     switch (screen) {
       case 'splash':         return <SplashScreen navigate={navigate} />;
       case 'terms':          return <TermsScreen onAccept={handleTermsAccept} />;
-      case 'auth':           return <AuthScreen navigate={navigate} consentData={consentData} />;
+      case 'auth':           return <AuthScreen navigate={navigate} consentData={consentData} params={params} />;
       case 'onboarding':     return <OnboardingScreen navigate={navigate} />;
       case 'home':           return <HomeScreen navigate={navigate} />;
       case 'programmes':     return <ProgrammesScreen navigate={navigate} />;
@@ -3397,12 +3483,14 @@ function App() {
     }
   })();
 
+  const isDev = typeof window !== 'undefined' && /localhost|127\.0\.0\.1/.test(window.location.hostname);
+  const chromeless = ['splash', 'terms', 'auth', 'onboarding', 'workout'].includes(screen);
   return (
-    <>
+    <AppDataCtx.Provider value={{ ...(data || {}), refresh, signOut }}>
       {screenEl}
-      <FeedbackButton screen={screen} />
-      <DevTestButton screen={screen} navigate={navigate} />
-    </>
+      {!chromeless && <FeedbackButton screen={screen} />}
+      {isDev && <DevTestButton screen={screen} navigate={navigate} />}
+    </AppDataCtx.Provider>
   );
 }
 
