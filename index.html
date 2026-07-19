@@ -191,18 +191,188 @@ const PROGRAMMES = [
   { id:'gain',        name:'Muscle & Weight Gain',  tag:'Build',      tagline:'Eat. Lift. Grow. Repeat.',                   weeks:12, level:'Int → Adv',        colour:'#B72B6D', text:'#FFFFFF', active:false, progress:0,    photo:'photos/model-2.jpg' },
 ];
 
-const TODAY_SESSION = { name:'Lower Body Sculpt', week:3, day:2, duration:45, exerciseCount:8, programme:'New Mum Reset', photo:'photos/model-4.jpg' };
-
-const EXERCISES = [
-  { name:'Glute Bridge',      sets:3, reps:15, weight:0,  rest:60,  tip:'Squeeze glutes at the top of every rep.' },
-  { name:'Romanian Deadlift', sets:3, reps:12, weight:15, rest:90,  tip:'Keep back flat, hinge at the hips.' },
-  { name:'Sumo Squat',        sets:3, reps:12, weight:12, rest:60,  tip:'Toes out 45°, knees track over toes.' },
-  { name:'Hip Thrust',        sets:4, reps:10, weight:20, rest:90,  tip:'Drive through your heels, not your toes.' },
-  { name:'Lateral Band Walk', sets:3, reps:20, weight:0,  rest:45,  tip:'Keep constant tension on the band.' },
-  { name:'Single Leg RDL',    sets:3, reps:10, weight:8,  rest:60,  tip:'Slow and controlled — balance is the work.' },
-  { name:'Donkey Kick',       sets:3, reps:15, weight:0,  rest:45,  tip:'Engage core throughout the movement.' },
-  { name:'Cool Down Stretch', sets:1, reps:0,  weight:0,  rest:0,   tip:'Hold each stretch for 30–45 seconds.' },
-];
+// ─── WORKOUT CONTENT ENGINE ───────────────────────────────────────────────────
+// Distinct sessions per programme (fixes "every programme = same session").
+// Perinatal programmes (new_mum, pregnant, core) are pelvic-floor-first & low-load.
+const _e = (name, sets, reps, weight, rest, tip) => ({ name, sets, reps, weight, rest, tip });
+const PROGRAMME_SESSIONS = {
+  new_mum: [
+    { name:'Core & Floor Reconnect', focus:'Pelvic floor · deep core', duration:30, exercises:[
+      _e('Diaphragmatic Breathing',3,8,0,30,'Inhale to expand the ribs, exhale to gently draw up the pelvic floor.'),
+      _e('Pelvic Floor Activation',3,10,0,40,'Exhale and lift, then fully let go — the release matters as much as the lift.'),
+      _e('Heel Slides',3,10,0,30,'Keep your lower back quiet and ribs down as the leg slides.'),
+      _e('Glute Bridge',3,12,0,45,'Exhale up, squeeze the glutes, ribs stay down.'),
+      _e('Bird Dog',3,8,0,45,'Opposite arm and leg — no wobble through the hips.'),
+      _e('Cool Down Stretch',1,0,0,0,'Hold each stretch 30–45 seconds and breathe.') ]},
+    { name:'Gentle Lower Body', focus:'Glutes · legs · low impact', duration:35, exercises:[
+      _e('Bodyweight Squat',3,12,0,45,'Sit back into the heels, exhale on the way up.'),
+      _e('Glute Bridge March',3,10,0,45,'Keep hips level as one foot lifts.'),
+      _e('Sit-to-Stand',3,12,0,45,'Control the lower — no dropping onto the chair.'),
+      _e('Side-Lying Leg Lift',3,12,0,40,'Lift from the glute, not the hip flexor.'),
+      _e('Wall Sit',3,20,0,45,'Hold, breathe, keep the pelvic floor relaxed but engaged.'),
+      _e('Cool Down Stretch',1,0,0,0,'Hip flexor and glute stretches, 30–45s each.') ]},
+    { name:'Posture & Upper Back', focus:'Upper body · posture', duration:30, exercises:[
+      _e('Band Row',3,12,0,45,'Squeeze the shoulder blades, keep ribs down.'),
+      _e('Wall Push-Up',3,10,0,45,'Full range, elbows at 45°.'),
+      _e('Band Pull-Apart',3,15,0,40,'Slow and controlled, chest proud.'),
+      _e('Dead Bug',3,8,0,45,'Lower back stays glued to the floor.'),
+      _e('Cat-Cow',2,10,0,30,'Move with your breath.'),
+      _e('Cool Down Stretch',1,0,0,0,'Chest and neck releases, breathe.') ]},
+  ],
+  pregnant: [
+    { name:'Prenatal Strength', focus:'Trimester-safe strength', duration:30, exercises:[
+      _e('Supported Squat',3,12,0,45,'Hold a support if needed; only as deep as feels good.'),
+      _e('Wall Push-Up',3,10,0,45,'Great as bump grows — avoid floor-lying after T1.'),
+      _e('Band Row',3,12,0,45,'Counteracts the pull of a growing bump.'),
+      _e('Side-Lying Leg Lift',3,12,0,40,'Controlled, breathe throughout.'),
+      _e('Bird Dog',3,8,0,45,'Keep the pelvis level and stable.'),
+      _e('Cool Down Stretch',1,0,0,0,'Gentle hip and back releases.') ]},
+    { name:'Pelvic Floor & Breath', focus:'Pelvic floor · core', duration:25, exercises:[
+      _e('Diaphragmatic Breathing',3,10,0,30,'Connect breath to the pelvic floor.'),
+      _e('Pelvic Floor Lifts',3,10,0,40,'Lift on the exhale, release fully.'),
+      _e('Pelvic Tilts',3,12,0,30,'Small, controlled — mobilise the low back.'),
+      _e('Bird Dog',3,8,0,45,'Stability over speed.'),
+      _e('Seated Band Row',3,12,0,40,'Posture work for the upper back.'),
+      _e('Cool Down Stretch',1,0,0,0,'Cat-cow and gentle side bends.') ]},
+    { name:'Mobility & Posture', focus:'Mobility · posture', duration:25, exercises:[
+      _e('Cat-Cow',3,10,0,30,'Move slowly with the breath.'),
+      _e('Standing Side Bend',3,10,0,30,'Create space along the ribs.'),
+      _e('Hip Circles',3,8,0,30,'Loosen the hips gently.'),
+      _e('Wall Angels',3,10,0,40,'Open the chest and shoulders.'),
+      _e('Supported Calf Raise',3,15,0,30,'Helps with prenatal circulation.'),
+      _e('Cool Down Stretch',1,0,0,0,'Breathe and relax fully.') ]},
+  ],
+  booty: [
+    { name:'Glute Power', focus:'Glutes · strength', duration:45, exercises:[
+      _e('Hip Thrust',4,10,20,90,'Drive through the heels, chin tucked, ribs down.'),
+      _e('Romanian Deadlift',3,10,15,90,'Hinge at the hips, flat back, feel the hamstrings.'),
+      _e('Bulgarian Split Squat',3,10,8,75,'Front heel drives, torso slightly forward.'),
+      _e('Cable Kickback',3,12,0,45,'Squeeze at the top, no swinging.'),
+      _e('Hip Abduction',3,15,0,45,'Slow, constant tension.'),
+      _e('Cool Down Stretch',1,0,0,0,'Glute and hip flexor stretches.') ]},
+    { name:'Hip Hinge Focus', focus:'Hamstrings · glutes', duration:45, exercises:[
+      _e('Sumo Deadlift',4,8,20,90,'Toes out, push the floor apart.'),
+      _e('Single-Leg RDL',3,10,8,60,'Balance is the work — slow and controlled.'),
+      _e('Glute Bridge March',3,12,0,45,'Hips stay level.'),
+      _e('Good Morning',3,10,10,60,'Soft knees, hinge from the hips.'),
+      _e('Lateral Band Walk',3,20,0,45,'Constant tension on the band.'),
+      _e('Cool Down Stretch',1,0,0,0,'Hamstring and glute releases.') ]},
+    { name:'Glute Pump', focus:'Glutes · volume', duration:40, exercises:[
+      _e('Sumo Squat',4,12,12,60,'Toes out 45°, knees track over toes.'),
+      _e('Hip Thrust',3,15,15,60,'Higher reps, full squeeze.'),
+      _e('Curtsy Lunge',3,12,6,60,'Step behind and across, control the knee.'),
+      _e('Donkey Kick',3,15,0,40,'Engage the core throughout.'),
+      _e('Frog Pump',3,20,0,40,'Heels together, pump from the glutes.'),
+      _e('Cool Down Stretch',1,0,0,0,'Deep glute stretch, breathe.') ]},
+  ],
+  core: [
+    { name:'Deep Core Activation', focus:'Transverse · pelvic floor', duration:30, exercises:[
+      _e('Diaphragmatic Breathing',3,10,0,30,'Rib expansion in, gentle floor lift out.'),
+      _e('Dead Bug',3,10,0,45,'Lower back glued to the floor.'),
+      _e('Bird Dog',3,10,0,45,'Slow — resist the wobble.'),
+      _e('Heel Taps',3,12,0,40,'Ribs down, control the descent.'),
+      _e('Pallof Press',3,12,0,45,'Resist the rotation — brace.'),
+      _e('Cool Down Stretch',1,0,0,0,'Gentle spinal twists.') ]},
+    { name:'Pelvic Floor Strength', focus:'Pelvic floor', duration:25, exercises:[
+      _e('Pelvic Floor Lifts',3,12,0,40,'Lift on exhale, full release each rep.'),
+      _e('Glute Bridge',3,12,0,45,'Connect glutes and floor.'),
+      _e('Clamshell',3,15,0,40,'Keep the pelvis still.'),
+      _e('Side-Lying Leg Lift',3,12,0,40,'Lift from the glute.'),
+      _e('Bird Dog',3,8,0,45,'Stability first.'),
+      _e('Cool Down Stretch',1,0,0,0,'Hip openers, breathe.') ]},
+    { name:'Anti-Rotation Core', focus:'Obliques · stability', duration:30, exercises:[
+      _e('Pallof Press',3,12,0,45,'Brace hard, resist the pull.'),
+      _e('Side Plank',3,20,0,45,'Stack the hips, breathe.'),
+      _e('Bird Dog',3,10,0,45,'Opposite limbs, level hips.'),
+      _e('Hollow Hold',3,15,0,45,'Lower back pressed down.'),
+      _e('Standing Chop',3,12,0,40,'Control the diagonal, brace the core.'),
+      _e('Cool Down Stretch',1,0,0,0,'Cat-cow and side bends.') ]},
+  ],
+  composition: [
+    { name:'Upper Body Sculpt', focus:'Upper · strength', duration:45, exercises:[
+      _e('Dumbbell Press',4,10,10,75,'Elbows at 45°, control the lower.'),
+      _e('Bent-Over Row',4,10,12,75,'Flat back, drive the elbows back.'),
+      _e('Shoulder Press',3,12,8,60,'Ribs down, press overhead.'),
+      _e('Lat Pulldown',3,12,0,60,'Lead with the elbows.'),
+      _e('Bicep Curl to Press',3,12,6,45,'Smooth, no swinging.'),
+      _e('Cool Down Stretch',1,0,0,0,'Chest and shoulder releases.') ]},
+    { name:'Lower Body Burn', focus:'Legs · glutes', duration:45, exercises:[
+      _e('Goblet Squat',4,12,12,75,'Chest tall, sit between the hips.'),
+      _e('Romanian Deadlift',4,10,15,75,'Hinge, flat back, hamstrings load.'),
+      _e('Walking Lunge',3,12,8,60,'Knee tracks over the toe.'),
+      _e('Hip Thrust',3,12,20,60,'Full squeeze at the top.'),
+      _e('Calf Raise',3,15,0,40,'Full range, pause at the top.'),
+      _e('Cool Down Stretch',1,0,0,0,'Quad and hamstring stretches.') ]},
+    { name:'Full Body HIIT', focus:'Conditioning', duration:35, exercises:[
+      _e('Squat to Press',4,12,6,40,'One fluid movement, power up.'),
+      _e('Renegade Row',3,10,8,45,'Hips square, no rotation.'),
+      _e('Reverse Lunge',3,12,0,40,'Controlled, drive through the front heel.'),
+      _e('Mountain Climbers',3,20,0,40,'Core braced, quick feet.'),
+      _e('Plank Shoulder Tap',3,16,0,40,'Minimise the hip sway.'),
+      _e('Cool Down Stretch',1,0,0,0,'Full-body flow, breathe down.') ]},
+  ],
+  reset: [
+    { name:'Full Body A', focus:'Strength · full body', duration:40, exercises:[
+      _e('Goblet Squat',3,12,10,60,'Chest tall, heels down.'),
+      _e('Dumbbell Row',3,12,10,60,'Flat back, squeeze the mid-back.'),
+      _e('Glute Bridge',3,15,0,45,'Exhale up, ribs down.'),
+      _e('Shoulder Press',3,12,6,45,'Controlled overhead.'),
+      _e('Dead Bug',3,10,0,45,'Core braced throughout.'),
+      _e('Cool Down Stretch',1,0,0,0,'Full-body stretch, 30–45s each.') ]},
+    { name:'Full Body B', focus:'Strength · full body', duration:40, exercises:[
+      _e('Romanian Deadlift',3,12,12,60,'Hinge, feel the hamstrings.'),
+      _e('Incline Push-Up',3,10,0,45,'Full range, elbows at 45°.'),
+      _e('Reverse Lunge',3,10,6,60,'Controlled, tall torso.'),
+      _e('Band Row',3,15,0,40,'Squeeze the shoulder blades.'),
+      _e('Side Plank',3,20,0,40,'Stack the hips.'),
+      _e('Cool Down Stretch',1,0,0,0,'Breathe and lengthen.') ]},
+    { name:'Cardio Strength', focus:'Conditioning', duration:30, exercises:[
+      _e('Squat Pulse',3,16,0,40,'Stay low, keep tension.'),
+      _e('Step-Ups',3,12,0,45,'Drive through the whole foot.'),
+      _e('Glute Bridge March',3,12,0,40,'Hips level.'),
+      _e('Mountain Climbers',3,20,0,40,'Quick, controlled.'),
+      _e('Plank',3,25,0,40,'Straight line head to heels.'),
+      _e('Cool Down Stretch',1,0,0,0,'Slow the breath, release.') ]},
+  ],
+  gain: [
+    { name:'Push', focus:'Chest · shoulders · triceps', duration:50, exercises:[
+      _e('Dumbbell Bench Press',4,8,14,90,'Control the lower, drive up.'),
+      _e('Shoulder Press',4,10,10,75,'Ribs down, press tall.'),
+      _e('Incline Press',3,10,10,75,'Upper chest focus.'),
+      _e('Lateral Raise',3,15,5,45,'Lead with the elbows.'),
+      _e('Tricep Extension',3,12,6,45,'Elbows tucked.'),
+      _e('Cool Down Stretch',1,0,0,0,'Chest and shoulder releases.') ]},
+    { name:'Pull', focus:'Back · biceps', duration:50, exercises:[
+      _e('Romanian Deadlift',4,8,18,90,'Hinge, flat back, brace.'),
+      _e('Bent-Over Row',4,10,14,75,'Drive the elbows back.'),
+      _e('Lat Pulldown',3,12,0,60,'Lead with the elbows, full stretch.'),
+      _e('Face Pull',3,15,0,45,'Great for posture and rear delts.'),
+      _e('Bicep Curl',3,12,7,45,'No swinging, full squeeze.'),
+      _e('Cool Down Stretch',1,0,0,0,'Lat and biceps stretches.') ]},
+    { name:'Legs', focus:'Quads · glutes · hamstrings', duration:50, exercises:[
+      _e('Back Squat',4,8,20,120,'Brace, sit between the hips.'),
+      _e('Hip Thrust',4,10,25,90,'Full squeeze, chin tucked.'),
+      _e('Walking Lunge',3,12,10,60,'Knee tracks the toe.'),
+      _e('Leg Curl',3,12,0,60,'Control the eccentric.'),
+      _e('Calf Raise',4,15,0,45,'Pause at the top.'),
+      _e('Cool Down Stretch',1,0,0,0,'Quad, glute and calf stretches.') ]},
+  ],
+};
+function programmeSessions(pid) { return PROGRAMME_SESSIONS[pid] || PROGRAMME_SESSIONS.new_mum; }
+function resolveSession(profile, sessionCount) {
+  const pid = (profile && profile.programme_id) || 'new_mum';
+  const list = programmeSessions(pid);
+  const count = sessionCount || 0;
+  const s = list[count % list.length];
+  const perWeek = (profile && profile.days_per_week) || 4;
+  const prog = PROGRAMMES.find(p => p.id === pid);
+  return { ...s, week: Math.floor(count / perWeek) + 1, day: (count % perWeek) + 1,
+    exerciseCount: s.exercises.length, programmeId: pid,
+    programme: prog ? prog.name : 'Your programme', photo: prog ? prog.photo : 'photos/model-4.jpg' };
+}
+// Fallbacks for any pre-auth render (default = New Mum session 1)
+const EXERCISES = PROGRAMME_SESSIONS.new_mum[0].exercises;
+const TODAY_SESSION = { ...PROGRAMME_SESSIONS.new_mum[0], week:1, day:1, exerciseCount:PROGRAMME_SESSIONS.new_mum[0].exercises.length, programme:'New Mum Reset', photo:'photos/model-1.jpg' };
 
 const MEALS_TODAY = [
   { id:1, name:'Greek yoghurt & berry bowl', kcal:320, protein:28, carbs:32, fat:8,  diet:['vegetarian'],          emoji:'🫐', time:'07:30' },
@@ -1870,6 +2040,7 @@ function HomeScreen({ navigate }) {
   const streak = app?.streak ?? USER.streak;
   const kcalToday = app?.todayTotals?.kcal ?? USER.macros.kcal;
   const kcalTarget = app?.profile?.target_kcal || USER.macros.kcalTarget;
+  const session = resolveSession(app?.profile, app?.sessionCount);
 
   return (
     <AppBackground>
@@ -1892,13 +2063,13 @@ function HomeScreen({ navigate }) {
 
         {/* Workout card */}
         <div onClick={() => navigate('workout')} style={{ position:'relative', borderRadius:'22px', overflow:'hidden', marginBottom:'14px', height:'156px', cursor:'pointer', boxShadow:'0 10px 26px rgba(21,181,166,0.26)' }}>
-          <div style={{ position:'absolute', right:0, top:0, bottom:0, width:'56%', backgroundImage:`url('${TODAY_SESSION.photo}')`, backgroundSize:'cover', backgroundPosition:'center 18%' }} />
+          <div style={{ position:'absolute', right:0, top:0, bottom:0, width:'56%', backgroundImage:`url('${session.photo}')`, backgroundSize:'cover', backgroundPosition:'center 18%' }} />
           <div style={{ position:'absolute', inset:0, background:'linear-gradient(100deg,#15B5A6 0%,#15B5A6 42%,rgba(21,181,166,0.82) 60%,rgba(21,181,166,0) 100%)' }} />
           <div style={{ position:'relative', padding:'22px', height:'100%', display:'flex', flexDirection:'column', justifyContent:'center', maxWidth:'64%' }}>
             <div style={{ fontFamily:'Inter', fontSize:'10px', fontWeight:600, letterSpacing:'0.16em', color:'rgba(255,255,255,0.85)', marginBottom:'7px' }}>WORKOUT</div>
-            <div style={{ fontFamily:'Playfair Display', fontSize:'23px', color:'#FFFFFF', lineHeight:1.12, marginBottom:'11px' }}>{TODAY_SESSION.name}</div>
+            <div style={{ fontFamily:'Playfair Display', fontSize:'23px', color:'#FFFFFF', lineHeight:1.12, marginBottom:'11px' }}>{session.name}</div>
             <div style={{ display:'flex', alignItems:'center', gap:'8px', fontFamily:'Inter', fontSize:'12px', fontWeight:500, color:'rgba(255,255,255,0.95)' }}>
-              <span>{TODAY_SESSION.duration} min</span>
+              <span>{session.duration} min</span>
               <span style={{ opacity:0.6 }}>•</span>
               <span>Intermediate</span>
             </div>
@@ -2187,11 +2358,17 @@ function ProgrammeDetailScreen({ navigate, params }) {
 // === screens-workout-nutrition.js ===
 // ─── WORKOUT PLAYER ───────────────────────────────────────────────────────────
 function WorkoutPlayerScreen({ navigate }) {
+  const app = useAppData();
+  // Resolve THIS user's current session from their programme + progress (stable per mount)
+  const session = useRef(resolveSession(app && app.profile, app && app.sessionCount)).current;
+  const EXERCISES = session.exercises;
+  const TODAY_SESSION = session;
   const [exIdx, setExIdx] = useState(0);
   const [setsDone, setSetsDone] = useState(0);
   const [resting, setResting] = useState(false);
   const [timeLeft, setTimeLeft] = useState(0);
   const [done, setDone] = useState(false);
+  const [cleared, setCleared] = useState(false);
   const [weights, setWeights] = useState(EXERCISES.map(e => e.weight));
   const timerRef = useRef(null);
 
@@ -2251,7 +2428,7 @@ function WorkoutPlayerScreen({ navigate }) {
       if (!session) return;
       supabase.from('rosa_sessions').insert({
         user_id: session.user.id,
-        programme_id: USER.programmeId,
+        programme_id: session.programmeId,
         session_name: TODAY_SESSION.name,
         week: TODAY_SESSION.week,
         day: TODAY_SESSION.day,
@@ -2273,7 +2450,7 @@ function WorkoutPlayerScreen({ navigate }) {
             "You're stronger than yesterday."
           </div>
           <div style={{ display:'grid', gridTemplateColumns:'1fr 1fr', gap:'10px', width:'100%', marginBottom:'28px' }}>
-            {[{l:'Exercises',v:EXERCISES.length},{l:'Sets',v:EXERCISES.reduce((a,e)=>a+e.sets,0)},{l:'Duration',v:`${TODAY_SESSION.duration}m`},{l:'Week',v:`${USER.programmeWeek}/${12}`}].map(s => (
+            {[{l:'Exercises',v:EXERCISES.length},{l:'Sets',v:EXERCISES.reduce((a,e)=>a+e.sets,0)},{l:'Duration',v:`${TODAY_SESSION.duration}m`},{l:'Week',v:`${session.week}`}].map(s => (
               <GlassCard key={s.l} style={{ textAlign:'center' }}>
                 <div style={{ fontFamily:'Playfair Display', fontSize:'28px', color:'#1A0D14' }}>{s.v}</div>
                 <div style={{ fontFamily:'Inter', fontSize:'10px', textTransform:'uppercase', letterSpacing:'0.08em', color:'rgba(224,68,134,0.6)', marginTop:'4px' }}>{s.l}</div>
@@ -3194,27 +3371,35 @@ function FeedbackButton({ screen }) {
   const [rating, setRating] = useState(0);
   const [hover, setHover]   = useState(0);
   const [msg, setMsg]       = useState('');
+  const [email, setEmail]   = useState('');
   const [sent, setSent]     = useState(false);
   const [sending, setSending] = useState(false);
+  const [errMsg, setErrMsg] = useState('');
 
   const submit = async () => {
     if (!rating) return;
-    setSending(true);
+    setSending(true); setErrMsg('');
     try {
       const { data: { session } } = await supabase.auth.getSession();
-      await supabase.from('rosa_feedback').insert({
+      // Anonymous testers submit with user_id null (RLS forbids impersonation)
+      const { error } = await supabase.from('rosa_feedback').insert({
         user_id:  session?.user?.id || null,
         screen,
         rating,
         message:  msg.trim() || null,
+        email:    email.trim() || session?.user?.email || null,
         platform: /iPhone|iPad|iPod/.test(navigator.userAgent) ? 'ios' :
                   /Android/.test(navigator.userAgent) ? 'android' : 'web',
         app_version: '1.0.0-beta',
       });
-    } catch (_) {}
-    setSending(false);
-    setSent(true);
-    setTimeout(() => { setOpen(false); setSent(false); setRating(0); setMsg(''); }, 2200);
+      if (error) throw error;
+      setSent(true);
+      setTimeout(() => { setOpen(false); setSent(false); setRating(0); setMsg(''); setEmail(''); }, 2200);
+    } catch (e) {
+      setErrMsg((e && e.message) ? e.message : 'Could not send — please try again.');
+    } finally {
+      setSending(false);
+    }
   };
 
   const stars = [1,2,3,4,5];
@@ -3264,6 +3449,19 @@ function FeedbackButton({ screen }) {
                     style={{ width:'100%', minHeight:'80px', padding:'12px 14px', borderRadius:'14px', border:'0.5px solid rgba(224,68,134,0.4)', background:'rgba(255,255,255,0.6)', fontFamily:'Inter', fontSize:'13px', color:'#1A0D14', resize:'none', outline:'none', boxSizing:'border-box', lineHeight:1.5 }} />
                 </div>
 
+                {/* Optional contact so we can follow up */}
+                <div style={{ marginBottom:'16px' }}>
+                  <div style={{ fontFamily:'Inter', fontSize:'12px', fontWeight:500, color:'rgba(224,68,134,0.7)', marginBottom:'8px', textTransform:'uppercase', letterSpacing:'0.08em' }}>Email (optional — if you'd like a reply)</div>
+                  <input type="email" value={email} onChange={e => setEmail(e.target.value)} placeholder="you@example.com"
+                    style={{ width:'100%', padding:'12px 14px', borderRadius:'14px', border:'0.5px solid rgba(224,68,134,0.4)', background:'rgba(255,255,255,0.6)', fontFamily:'Inter', color:'#1A0D14', outline:'none', boxSizing:'border-box' }} />
+                </div>
+
+                {errMsg && (
+                  <div style={{ marginBottom:'12px', padding:'10px 12px', borderRadius:'12px', background:'rgba(192,57,43,0.08)', border:'1px solid rgba(192,57,43,0.25)', fontFamily:'Inter', fontSize:'12px', color:'#c0392b' }}>
+                    {errMsg}
+                  </div>
+                )}
+
                 <button onClick={submit} disabled={!rating || sending}
                   style={{ width:'100%', padding:'15px', borderRadius:'24px', background: rating ? 'linear-gradient(135deg,#E04486,#B72B6D)' : 'rgba(224,68,134,0.3)', color: rating ? '#FFFFFF' : 'rgba(224,68,134,0.4)', border:'none', fontFamily:'Inter', fontSize:'14px', fontWeight:500, cursor: rating ? 'pointer' : 'default', transition:'all 0.2s' }}>
                   {sending ? 'Sending…' : 'Send feedback'}
@@ -3281,8 +3479,121 @@ function FeedbackButton({ screen }) {
   );
 }
 
+// ─── FEEDBACK REVIEW (admin) ──────────────────────────────────────────────────
+// Admins (rosa_admins allowlist) see every submission; everyone else sees only their own.
+function FeedbackReviewScreen({ navigate }) {
+  const [rows, setRows] = useState(null);
+  const [isAdmin, setIsAdmin] = useState(null);
+  const [filter, setFilter] = useState('all');
+  const [busy, setBusy] = useState(null);
+
+  const load = useCallback(async () => {
+    try { const { data: adm } = await supabase.rpc('is_seze_admin'); setIsAdmin(!!adm); }
+    catch (_) { setIsAdmin(false); }
+    const { data, error } = await supabase.from('rosa_feedback')
+      .select('id,created_at,screen,rating,message,email,status,platform,user_id')
+      .order('created_at', { ascending: false }).limit(200);
+    if (error) console.error('[feedback load]', error.message);
+    setRows(error ? [] : (data || []));
+  }, []);
+  useEffect(() => { load(); }, [load]);
+
+  const setStatus = async (id, status) => {
+    setBusy(id);
+    const { error } = await supabase.from('rosa_feedback').update({ status }).eq('id', id);
+    if (error) console.error('[feedback status]', error.message);
+    setBusy(null); load();
+  };
+
+  const all = rows || [];
+  const shown = all.filter(r => filter === 'all' || (r.status || 'new') === filter);
+  const counts = all.reduce((a, r) => { const s = r.status || 'new'; a[s] = (a[s] || 0) + 1; return a; }, {});
+  const avg = all.length ? (all.reduce((a, r) => a + (r.rating || 0), 0) / all.length).toFixed(1) : '—';
+
+  return (
+    <AppBackground>
+      <Screen scrollable>
+        <div style={{ paddingTop:'56px', paddingBottom:'48px' }}>
+          <div style={{ display:'flex', alignItems:'center', gap:'12px', marginBottom:'4px' }}>
+            <button onClick={() => navigate('home')} aria-label="Back" style={{ background:'none', border:'none', cursor:'pointer', padding:0, display:'flex' }}><BackIcon /></button>
+            <div style={{ fontFamily:'Playfair Display', fontSize:'30px', fontWeight:700, color:'#1A0D14' }}>Feedback</div>
+          </div>
+          <div style={{ fontFamily:'Inter', fontSize:'13px', color:'rgba(26,13,20,0.55)', marginBottom:'18px' }}>
+            {isAdmin === false ? 'Showing your own submissions. Sign in as an admin to review everyone’s.' : 'All submissions, newest first.'}
+          </div>
+
+          <div style={{ display:'flex', gap:'8px', marginBottom:'16px' }}>
+            {[{l:'Total',v:all.length},{l:'Avg rating',v:avg},{l:'New',v:counts.new||0}].map(s => (
+              <GlassCard key={s.l} strong style={{ flex:1, textAlign:'center', padding:'12px 8px' }}>
+                <div style={{ fontFamily:'Playfair Display', fontSize:'22px', color:'#1A0D14' }}>{s.v}</div>
+                <div style={{ fontFamily:'Inter', fontSize:'9px', textTransform:'uppercase', letterSpacing:'0.07em', color:'rgba(224,68,134,0.6)', marginTop:'2px' }}>{s.l}</div>
+              </GlassCard>
+            ))}
+          </div>
+
+          <div style={{ display:'flex', gap:'6px', marginBottom:'14px', overflowX:'auto', paddingBottom:'4px' }}>
+            {['all','new','reviewed','actioned','wontfix'].map(f => (
+              <button key={f} onClick={() => setFilter(f)}
+                style={{ padding:'7px 14px', borderRadius:'24px', whiteSpace:'nowrap', fontFamily:'Inter', fontSize:'11px', fontWeight:500, cursor:'pointer', flexShrink:0,
+                  background: filter===f ? '#E04486' : 'rgba(255,255,255,0.5)', color: filter===f ? '#FFFFFF' : '#1A0D14',
+                  border: filter===f ? 'none' : '0.5px solid rgba(224,68,134,0.3)' }}>{f}</button>
+            ))}
+          </div>
+
+          {rows === null && <div style={{ fontFamily:'Inter', fontSize:'13px', color:'rgba(26,13,20,0.5)' }}>Loading…</div>}
+          {rows && shown.length === 0 && (
+            <GlassCard style={{ textAlign:'center', padding:'28px 20px' }}>
+              <div style={{ fontFamily:'Playfair Display', fontSize:'15px', color:'#B72B6D', fontStyle:'italic' }}>No feedback here yet.</div>
+              <div style={{ fontFamily:'Inter', fontSize:'11px', color:'rgba(26,13,20,0.5)', marginTop:'6px' }}>Submissions appear here as soon as they come in.</div>
+            </GlassCard>
+          )}
+
+          {shown.map(r => (
+            <GlassCard key={r.id} style={{ marginBottom:'10px' }}>
+              <div style={{ display:'flex', justifyContent:'space-between', alignItems:'flex-start', gap:'10px', marginBottom:'7px' }}>
+                <div style={{ display:'flex', gap:'2px' }}>
+                  {[1,2,3,4,5].map(i => <Ic key={i} name="star" size={14} color={i<=(r.rating||0)?'#E04486':'rgba(224,68,134,0.25)'} fill={i<=(r.rating||0)?'#E04486':'none'} stroke={1.6} />)}
+                </div>
+                <span style={{ fontFamily:'Inter', fontSize:'10px', color:'rgba(26,13,20,0.45)', textAlign:'right' }}>
+                  {new Date(r.created_at).toLocaleDateString()} · {r.screen || '—'}
+                </span>
+              </div>
+              {r.message && <div style={{ fontFamily:'Inter', fontSize:'13px', color:'#1A0D14', lineHeight:1.55, marginBottom:'7px' }}>{r.message}</div>}
+              <div style={{ fontFamily:'Inter', fontSize:'11px', color:'rgba(26,13,20,0.5)', marginBottom:'10px' }}>
+                {r.email || (r.user_id ? 'signed-in user' : 'anonymous')} · {r.platform || 'web'}
+              </div>
+              <div style={{ display:'flex', gap:'6px', flexWrap:'wrap' }}>
+                {['new','reviewed','actioned','wontfix'].map(s => (
+                  <button key={s} disabled={busy===r.id} onClick={() => setStatus(r.id, s)}
+                    style={{ padding:'5px 11px', borderRadius:'20px', fontFamily:'Inter', fontSize:'10px', fontWeight:600, cursor:'pointer',
+                      background:(r.status||'new')===s ? '#15B5A6' : 'rgba(255,255,255,0.6)',
+                      color:(r.status||'new')===s ? '#FFFFFF' : 'rgba(26,13,20,0.6)',
+                      border:(r.status||'new')===s ? 'none' : '0.5px solid rgba(224,68,134,0.25)', opacity: busy===r.id ? 0.5 : 1 }}>{s}</button>
+                ))}
+              </div>
+            </GlassCard>
+          ))}
+        </div>
+      </Screen>
+    </AppBackground>
+  );
+}
+
 // ─── DEV TEST MODE BUTTON ─────────────────────────────────────────────────────
-const ALL_SCREENS = ['splash','terms','auth','onboarding','home','programmes','programme_detail','workout','nutrition','progress','profile'];
+const ALL_SCREENS = ['splash','terms','auth','onboarding','home','programmes','programme_detail','workout','nutrition','progress','profile','feedback_review'];
+
+// Dev mode is always on for localhost. On production, open ?dev=1 to switch it on
+// (it sticks via localStorage for demos) and ?dev=0 to switch it back off.
+function devModeEnabled() {
+  if (typeof window === 'undefined') return false;
+  try {
+    if (/localhost|127\.0\.0\.1/.test(window.location.hostname)) return true;
+    const p = new URLSearchParams(window.location.search).get('dev');
+    if (p === '1') window.localStorage.setItem('seze_dev', '1');
+    if (p === '0') window.localStorage.removeItem('seze_dev');
+    return window.localStorage.getItem('seze_dev') === '1';
+  } catch (_) { return false; }
+}
 
 function DevTestButton({ screen, navigate }) {
   const [open, setOpen] = useState(false);
@@ -3479,16 +3790,19 @@ function App() {
       case 'nutrition':      return <NutritionScreen navigate={navigate} />;
       case 'progress':       return <ProgressScreen navigate={navigate} />;
       case 'profile':        return <ProfileScreen navigate={navigate} />;
+      case 'feedback_review': return <FeedbackReviewScreen navigate={navigate} />;
       default:               return <SplashScreen navigate={navigate} />;
     }
   })();
 
-  const isDev = typeof window !== 'undefined' && /localhost|127\.0\.0\.1/.test(window.location.hostname);
-  const chromeless = ['splash', 'terms', 'auth', 'onboarding', 'workout'].includes(screen);
+  // Dev mode: always on localhost; on production enable with ?dev=1 (sticky) and disable with ?dev=0
+  const isDev = devModeEnabled();
+  // Feedback is available everywhere except the immersive player (it would cover the controls)
+  const hideFeedback = screen === 'workout' || screen === 'feedback_review';
   return (
     <AppDataCtx.Provider value={{ ...(data || {}), refresh, signOut }}>
       {screenEl}
-      {!chromeless && <FeedbackButton screen={screen} />}
+      {!hideFeedback && <FeedbackButton screen={screen} />}
       {isDev && <DevTestButton screen={screen} navigate={navigate} />}
     </AppDataCtx.Provider>
   );
