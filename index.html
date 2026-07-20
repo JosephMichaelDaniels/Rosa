@@ -594,6 +594,32 @@ function parseFood(text) {
   return results;
 }
 
+// Real nutrition lookup — curated fast-food table + Open Food Facts + USDA (via edge fn)
+async function searchNutrition(payload) {
+  try {
+    const r = await fetch(`${ROSA_EDGE_URL}/nutrition-search`, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json', 'Authorization': `Bearer ${SUPABASE_ANON_KEY}`, 'apikey': SUPABASE_ANON_KEY },
+      body: JSON.stringify(payload),
+    });
+    const j = await r.json();
+    return (j && j.results) || [];
+  } catch (_) { return []; }
+}
+// Map an edge-fn result into the app's parsed-item shape
+function nutritionResultToItem(res, qty = 1) {
+  return {
+    id: Date.now() + Math.random(),
+    name: res.name, displayQty: qty,
+    kcal: Math.round((res.kcal || 0) * qty),
+    protein: Math.round((res.protein || 0) * qty * 10) / 10,
+    carbs: Math.round((res.carbs || 0) * qty * 10) / 10,
+    fat: Math.round((res.fat || 0) * qty * 10) / 10,
+    serving: res.serving, source: res.source === 'curated' ? 'manual' : (res.source === 'usda' || res.source === 'openfoodfacts' ? 'barcode' : 'manual'),
+    _base: { kcal: res.kcal || 0, protein: res.protein || 0, carbs: res.carbs || 0, fat: res.fat || 0 },
+  };
+}
+
 // ─── BRAIN MATRIX ────────────────────────────────────────────────────────────
 function computeMatrix(answers) {
   const { lifeStage, goals = [], daysPerWeek, equipment, dietType } = answers;
@@ -2277,7 +2303,7 @@ function ProgrammeDetailScreen({ navigate, params }) {
 
   return (
     <AppBackground>
-      <div style={{ minHeight:'100vh', paddingBottom:'32px', overflowY:'auto' }}>
+      <div style={{ minHeight:'100vh', paddingBottom:'100px', overflowY:'auto' }}>
         {/* Hero image */}
         <div style={{ position:'relative', height:'280px', overflow:'hidden' }}>
           <div role="img" aria-label={prog.name}
@@ -2386,6 +2412,7 @@ function ProgrammeDetailScreen({ navigate, params }) {
           </PillButton>
         </div>
       </div>
+      <BottomNav active="programmes" navigate={navigate} />
     </AppBackground>
   );
 }
@@ -2510,8 +2537,8 @@ function WorkoutPlayerScreen({ navigate }) {
     <div style={{ minHeight:'100vh', background:'radial-gradient(120% 80% at 50% 0%, #241a3d 0%, #17122b 55%, #120e22 100%)', display:'flex', flexDirection:'column', padding:'0 22px 30px' }}>
       {/* Header */}
       <div style={{ display:'flex', alignItems:'center', justifyContent:'space-between', paddingTop:'52px', marginBottom:'10px' }}>
-        <button onClick={() => navigate('home')} aria-label="Close" style={{ background:'rgba(255,255,255,0.1)', border:'none', borderRadius:'50%', width:'38px', height:'38px', cursor:'pointer', display:'flex', alignItems:'center', justifyContent:'center' }}>
-          <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="#FFFFFF" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="M6 9l6 6 6-6" /></svg>
+        <button onClick={() => navigate('home')} aria-label="Exit workout" style={{ background:'rgba(255,255,255,0.1)', border:'none', borderRadius:'50%', width:'38px', height:'38px', cursor:'pointer', display:'flex', alignItems:'center', justifyContent:'center' }}>
+          <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="#FFFFFF" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="M18 6L6 18M6 6l12 12" /></svg>
         </button>
         <span style={{ fontFamily:'Inter', fontSize:'12px', fontWeight:500, color:'rgba(255,255,255,0.55)' }}>{TODAY_SESSION.name}</span>
         <div style={{ width:'38px', height:'38px', borderRadius:'50%', display:'flex', alignItems:'center', justifyContent:'center' }}>
@@ -2760,6 +2787,10 @@ function NutritionScreen({ navigate }) {
   const [aiState, setAiState] = useState('idle'); // idle | thinking | review | photo
   const [parsedItems, setParsedItems] = useState([]);
   const [loggedItems, setLoggedItems] = useState([]);
+  const [selectedSlot, setSelectedSlot] = useState(getMealSlot()); // which meal this goes to
+  const [addQuery, setAddQuery] = useState('');
+  const [addResults, setAddResults] = useState(null);
+  const [searching, setSearching] = useState(false);
   // Load today's real logged meals from Supabase (via the app data provider)
   useEffect(() => {
     if (!app || !app.meals) return;
@@ -2782,27 +2813,38 @@ function NutritionScreen({ navigate }) {
   const submitAI = (inputText) => {
     const t = (inputText || aiInput).trim();
     if (!t) return;
+    setSelectedSlot(getMealSlot());
     setAiState('thinking');
-    setTimeout(() => {
-      const items = parseFood(t);
+    setTimeout(async () => {
+      let items = parseFood(t);
       if (items.length === 0) {
-        setParsedItems([{ id: Date.now(), name: t, kcal:150, protein:8, carbs:15, fat:6, emoji:'🍽️', estimated:true, displayQty:1 }]);
-      } else {
-        setParsedItems(items);
+        items = [{ id: Date.now(), name: t, kcal:150, protein:8, carbs:15, fat:6, displayQty:1, estimated:true }];
       }
+      setParsedItems(items);
       setAiState('review');
-    }, 700);
+      // Accuracy pass: replace any 'estimated' items with a real DB lookup (curated/OFF/USDA)
+      const est = items.filter(i => i.estimated);
+      for (const it of est) {
+        const res = await searchNutrition({ query: it.name });
+        if (res && res.length) {
+          const better = nutritionResultToItem(res[0], it.displayQty || 1);
+          setParsedItems(prev => prev.map(p => p.id === it.id ? { ...better, id: p.id } : p));
+        }
+      }
+    }, 500);
   };
 
   const confirmLog = () => {
+    if (!parsedItems.length) return;
     const now = new Date();
     const timeStr = `${String(now.getHours()).padStart(2,'0')}:${String(now.getMinutes()).padStart(2,'0')}`;
-    const slot = getMealSlot();
+    const slot = selectedSlot;
     const loggedDate = now.toISOString().split('T')[0];
     const newItems = parsedItems.map(item => ({ ...item, _id: Date.now()+Math.random(), slot, time: timeStr }));
     setLoggedItems(prev => [...prev, ...newItems]);
     setParsedItems([]);
     setAiInput('');
+    setAddQuery(''); setAddResults(null);
     setAiState('idle');
     supabase.auth.getSession().then(({ data: { session } }) => {
       if (!session) return;
@@ -2819,15 +2861,39 @@ function NutritionScreen({ navigate }) {
   };
 
   const handlePhotoResult = (items) => {
+    setSelectedSlot(getMealSlot());
     setParsedItems(items);
     setAiState('review');
   };
 
-  const removeLogged = (id) => setLoggedItems(prev => prev.filter(m => m._id !== id));
+  // Remove a saved meal — locally and from Supabase (real uuid ids only)
+  const removeLogged = (id) => {
+    setLoggedItems(prev => prev.filter(m => m._id !== id));
+    if (typeof id === 'string' && /^[0-9a-f-]{36}$/.test(id)) {
+      supabase.from('rosa_nutrition_logs').delete().eq('id', id)
+        .then(({ error }) => { if (error) console.error('[remove meal]', error.message); else if (app && app.refresh) app.refresh(); });
+    }
+  };
+  const removeParsed = (id) => setParsedItems(prev => prev.filter(i => i.id !== id));
+  const addParsedItem = (item) => setParsedItems(prev => [...prev, item]);
+  const runFoodSearch = async (q) => {
+    const query = (q || '').trim();
+    if (query.length < 2) { setAddResults(null); return; }
+    setSearching(true);
+    const res = await searchNutrition({ query });
+    setSearching(false);
+    setAddResults(res);
+  };
   const updateParsedQty = (id, delta) => {
     setParsedItems(prev => prev.map(item => {
       if (item.id !== id) return item;
-      const newQty = Math.max(0.5, (item.displayQty || 1) + delta);
+      const newQty = Math.max(0.5, Math.round(((item.displayQty || 1) + delta) * 10) / 10);
+      // Recompute from a stored base where we have it (no compounding rounding drift)
+      if (item._base) {
+        return { ...item, displayQty:newQty,
+          kcal:Math.round(item._base.kcal*newQty), protein:Math.round(item._base.protein*newQty*10)/10,
+          carbs:Math.round(item._base.carbs*newQty*10)/10, fat:Math.round(item._base.fat*newQty*10)/10 };
+      }
       const ratio = newQty / (item.displayQty || 1);
       return { ...item, displayQty:newQty, kcal:Math.round(item.kcal*ratio), protein:Math.round(item.protein*ratio*10)/10, carbs:Math.round(item.carbs*ratio*10)/10, fat:Math.round(item.fat*ratio*10)/10 };
     }));
@@ -2926,9 +2992,12 @@ function NutritionScreen({ navigate }) {
 
         {tab === 'log' && (
           <CalorieLogTab aiInput={aiInput} setAiInput={setAiInput} aiState={aiState} parsedItems={parsedItems}
-            onSubmit={submitAI} onConfirm={confirmLog} onCancel={() => { setParsedItems([]); setAiState('idle'); }}
+            onSubmit={submitAI} onConfirm={confirmLog} onCancel={() => { setParsedItems([]); setAiState('idle'); setAddQuery(''); setAddResults(null); }}
             onUpdateQty={updateParsedQty} loggedItems={loggedItems} onRemove={removeLogged}
-            onPhotoResult={handlePhotoResult} />
+            onPhotoResult={handlePhotoResult}
+            selectedSlot={selectedSlot} setSelectedSlot={setSelectedSlot}
+            onRemoveParsed={removeParsed} onAddItem={addParsedItem}
+            addQuery={addQuery} setAddQuery={setAddQuery} addResults={addResults} searching={searching} onFoodSearch={runFoodSearch} />
         )}
         {tab === 'menu' && <MenuScannerTab userGoal="general health" />}
         {tab === 'kitchen' && (
@@ -2941,8 +3010,16 @@ function NutritionScreen({ navigate }) {
   );
 }
 
-function CalorieLogTab({ aiInput, setAiInput, aiState, parsedItems, onSubmit, onConfirm, onCancel, onUpdateQty, loggedItems, onRemove, onPhotoResult }) {
+function CalorieLogTab({ aiInput, setAiInput, aiState, parsedItems, onSubmit, onConfirm, onCancel, onUpdateQty, loggedItems, onRemove, onPhotoResult,
+  selectedSlot, setSelectedSlot, onRemoveParsed, onAddItem, addQuery, setAddQuery, addResults, searching, onFoodSearch }) {
   const inputRef = useRef(null);
+  const [showSearch, setShowSearch] = useState(false);
+  const searchTimer = useRef(null);
+  const onSearchChange = (v) => {
+    setAddQuery(v);
+    clearTimeout(searchTimer.current);
+    searchTimer.current = setTimeout(() => onFoodSearch(v), 350);
+  };
 
   const handleKey = (e) => { if (e.key === 'Enter' && !e.shiftKey) { e.preventDefault(); onSubmit(); } };
 
@@ -2992,28 +3069,70 @@ function CalorieLogTab({ aiInput, setAiInput, aiState, parsedItems, onSubmit, on
       )}
 
       {/* Review parsed items */}
-      {aiState === 'review' && parsedItems.length > 0 && (
+      {aiState === 'review' && (
         <GlassCard style={{ marginBottom:'16px', padding:'14px' }}>
-          <div style={{ fontFamily:'Inter', fontSize:'11px', fontWeight:600, textTransform:'uppercase', letterSpacing:'0.1em', color:'rgba(224,68,134,0.6)', marginBottom:'10px' }}>SEZE found {parsedItems.length} item{parsedItems.length>1?'s':''}</div>
-          <div style={{ display:'flex', flexDirection:'column', gap:'8px', marginBottom:'12px' }}>
+          <div style={{ fontFamily:'Inter', fontSize:'11px', fontWeight:600, textTransform:'uppercase', letterSpacing:'0.1em', color:'rgba(224,68,134,0.6)', marginBottom:'10px' }}>Review &amp; log</div>
+
+          {/* Which meal? */}
+          <div style={{ fontFamily:'Inter', fontSize:'10px', fontWeight:600, textTransform:'uppercase', letterSpacing:'0.08em', color:'rgba(224,68,134,0.5)', marginBottom:'7px' }}>Add to</div>
+          <div style={{ display:'flex', gap:'6px', marginBottom:'14px' }}>
+            {MEAL_SLOTS.map(s => (
+              <button key={s.id} onClick={() => setSelectedSlot(s.id)}
+                style={{ flex:1, padding:'8px 4px', borderRadius:'12px', fontFamily:'Inter', fontSize:'11px', fontWeight:600, cursor:'pointer',
+                  background: selectedSlot===s.id ? '#E04486' : 'rgba(255,255,255,0.55)', color: selectedSlot===s.id ? '#FFFFFF' : '#1A0D14',
+                  border: selectedSlot===s.id ? 'none' : '0.5px solid rgba(224,68,134,0.3)' }}>{s.id === 'snack' ? 'Snack' : s.label}</button>
+            ))}
+          </div>
+
+          <div style={{ display:'flex', flexDirection:'column', gap:'8px', marginBottom:'10px' }}>
             {parsedItems.map(item => (
-              <div key={item.id} style={{ display:'flex', alignItems:'center', gap:'10px', padding:'10px 12px', borderRadius:'12px', background:'rgba(255,255,255,0.45)', border:'0.5px solid rgba(224,68,134,0.2)' }}>
-                <div style={{ width:'36px', height:'36px', borderRadius:'10px', background:'rgba(224,68,134,0.08)', display:'flex', alignItems:'center', justifyContent:'center', flexShrink:0 }}><Ic name="utensils" size={18} color="#E04486" stroke={1.7} /></div>
+              <div key={item.id} style={{ display:'flex', alignItems:'center', gap:'8px', padding:'10px 12px', borderRadius:'12px', background:'rgba(255,255,255,0.45)', border:'0.5px solid rgba(224,68,134,0.2)' }}>
+                <div style={{ width:'34px', height:'34px', borderRadius:'10px', background:'rgba(224,68,134,0.08)', display:'flex', alignItems:'center', justifyContent:'center', flexShrink:0 }}><Ic name="utensils" size={17} color="#E04486" stroke={1.7} /></div>
                 <div style={{ flex:1, minWidth:0 }}>
-                  <div style={{ fontFamily:'Inter', fontSize:'12px', fontWeight:500, color:'#1A0D14', textTransform:'capitalize' }}>{item.name}</div>
+                  <div style={{ fontFamily:'Inter', fontSize:'12px', fontWeight:500, color:'#1A0D14', textTransform:'capitalize', whiteSpace:'nowrap', overflow:'hidden', textOverflow:'ellipsis' }}>{item.name}</div>
                   <div style={{ fontFamily:'Inter', fontSize:'10px', color:'rgba(224,68,134,0.65)', marginTop:'1px' }}>
                     {item.kcal} kcal · {item.protein}g P · {item.carbs}g C · {item.fat}g F
                     {item.estimated && <span style={{ color:'rgba(224,68,134,0.45)' }}> (est.)</span>}
                   </div>
                 </div>
-                <div style={{ display:'flex', alignItems:'center', gap:'6px', flexShrink:0 }}>
-                  <button onClick={() => onUpdateQty(item.id,-0.5)} style={{ width:'24px', height:'24px', borderRadius:'50%', background:'rgba(224,68,134,0.3)', border:'none', fontFamily:'Inter', fontSize:'14px', color:'#E04486', cursor:'pointer', display:'flex', alignItems:'center', justifyContent:'center' }}>−</button>
-                  <span style={{ fontFamily:'Inter', fontSize:'12px', fontWeight:600, color:'#1A0D14', minWidth:'20px', textAlign:'center' }}>{item.displayQty}</span>
-                  <button onClick={() => onUpdateQty(item.id,0.5)} style={{ width:'24px', height:'24px', borderRadius:'50%', background:'rgba(224,68,134,0.3)', border:'none', fontFamily:'Inter', fontSize:'14px', color:'#E04486', cursor:'pointer', display:'flex', alignItems:'center', justifyContent:'center' }}>+</button>
+                <div style={{ display:'flex', alignItems:'center', gap:'5px', flexShrink:0 }}>
+                  <button onClick={() => onUpdateQty(item.id,-0.5)} aria-label="Less" style={{ width:'24px', height:'24px', borderRadius:'50%', background:'rgba(224,68,134,0.3)', border:'none', fontSize:'14px', color:'#E04486', cursor:'pointer' }}>−</button>
+                  <span style={{ fontFamily:'Inter', fontSize:'12px', fontWeight:600, color:'#1A0D14', minWidth:'18px', textAlign:'center' }}>{item.displayQty}</span>
+                  <button onClick={() => onUpdateQty(item.id,0.5)} aria-label="More" style={{ width:'24px', height:'24px', borderRadius:'50%', background:'rgba(224,68,134,0.3)', border:'none', fontSize:'14px', color:'#E04486', cursor:'pointer' }}>+</button>
+                  <button onClick={() => onRemoveParsed(item.id)} aria-label="Remove food" style={{ width:'24px', height:'24px', borderRadius:'50%', background:'rgba(26,13,20,0.06)', border:'none', fontSize:'13px', color:'rgba(26,13,20,0.5)', cursor:'pointer' }}>×</button>
                 </div>
               </div>
             ))}
+            {parsedItems.length === 0 && (
+              <div style={{ textAlign:'center', fontFamily:'Inter', fontSize:'12px', color:'rgba(26,13,20,0.5)', padding:'8px 0' }}>No foods yet — add one below.</div>
+            )}
           </div>
+
+          {/* Add another food (searches the real food database) */}
+          {!showSearch ? (
+            <button onClick={() => setShowSearch(true)}
+              style={{ width:'100%', padding:'10px', borderRadius:'12px', background:'rgba(255,255,255,0.5)', border:'1px dashed rgba(224,68,134,0.45)', fontFamily:'Inter', fontSize:'12px', fontWeight:600, color:'#E04486', cursor:'pointer', marginBottom:'12px', display:'flex', alignItems:'center', justifyContent:'center', gap:'6px' }}>
+              <Ic name="utensils" size={14} color="#E04486" stroke={1.8} /> Add a food
+            </button>
+          ) : (
+            <div style={{ marginBottom:'12px' }}>
+              <input value={addQuery} onChange={e => onSearchChange(e.target.value)} autoFocus placeholder="Search foods & brands — e.g. Starbucks latte"
+                style={{ width:'100%', padding:'11px 13px', borderRadius:'12px', border:'0.5px solid rgba(224,68,134,0.4)', background:'rgba(255,245,248,0.4)', fontFamily:'Inter', color:'#1A0D14', outline:'none', boxSizing:'border-box' }} />
+              {searching && <div style={{ fontFamily:'Inter', fontSize:'11px', color:'rgba(224,68,134,0.6)', padding:'8px 2px' }}>Searching…</div>}
+              {addResults && addResults.length === 0 && !searching && <div style={{ fontFamily:'Inter', fontSize:'11px', color:'rgba(26,13,20,0.5)', padding:'8px 2px' }}>No matches — try a different name.</div>}
+              {addResults && addResults.slice(0,8).map((r, i) => (
+                <div key={i} onClick={() => { onAddItem(nutritionResultToItem(r, 1)); setAddQuery(''); setShowSearch(false); }}
+                  style={{ display:'flex', alignItems:'center', gap:'10px', padding:'9px 8px', borderBottom:'0.5px solid rgba(224,68,134,0.12)', cursor:'pointer' }}>
+                  <div style={{ flex:1, minWidth:0 }}>
+                    <div style={{ fontFamily:'Inter', fontSize:'12.5px', fontWeight:500, color:'#1A0D14', whiteSpace:'nowrap', overflow:'hidden', textOverflow:'ellipsis' }}>{r.name}</div>
+                    <div style={{ fontFamily:'Inter', fontSize:'10px', color:'rgba(224,68,134,0.6)' }}>{r.kcal} kcal · {r.serving || 'serving'} · {r.source === 'curated' ? 'SEZE' : r.source === 'usda' ? 'USDA' : 'OFF'}</div>
+                  </div>
+                  <Ic name="utensils" size={15} color="rgba(224,68,134,0.5)" stroke={1.7} />
+                </div>
+              ))}
+            </div>
+          )}
+
           <div style={{ padding:'8px 12px', borderRadius:'10px', background:'rgba(224,68,134,0.15)', marginBottom:'12px' }}>
             <span style={{ fontFamily:'Inter', fontSize:'12px', color:'rgba(26,13,20,0.7)' }}>
               Total: <strong style={{ color:'#1A0D14' }}>{parsedItems.reduce((a,i)=>a+i.kcal,0)} kcal</strong>
@@ -3021,8 +3140,8 @@ function CalorieLogTab({ aiInput, setAiInput, aiState, parsedItems, onSubmit, on
             </span>
           </div>
           <div style={{ display:'flex', gap:'8px' }}>
-            <button onClick={onCancel} style={{ flex:1, padding:'11px', borderRadius:'20px', background:'rgba(224,68,134,0.2)', border:'none', fontFamily:'Inter', fontSize:'12px', color:'rgba(224,68,134,0.7)', cursor:'pointer' }}>Edit</button>
-            <button onClick={onConfirm} style={{ flex:2, padding:'11px', borderRadius:'20px', background:'linear-gradient(135deg,#E04486,#B72B6D)', border:'none', fontFamily:'Inter', fontSize:'13px', fontWeight:500, color:'#FFFFFF', cursor:'pointer' }}>✓ Log it all</button>
+            <button onClick={onCancel} style={{ flex:1, padding:'11px', borderRadius:'20px', background:'rgba(224,68,134,0.2)', border:'none', fontFamily:'Inter', fontSize:'12px', color:'rgba(224,68,134,0.7)', cursor:'pointer' }}>Cancel</button>
+            <button onClick={onConfirm} disabled={parsedItems.length===0} style={{ flex:2, padding:'11px', borderRadius:'20px', background: parsedItems.length ? 'linear-gradient(135deg,#E04486,#B72B6D)' : 'rgba(224,68,134,0.3)', border:'none', fontFamily:'Inter', fontSize:'13px', fontWeight:500, color:'#FFFFFF', cursor: parsedItems.length ? 'pointer' : 'default' }}>Log to {(MEAL_SLOTS.find(s=>s.id===selectedSlot)||{}).label || 'meal'}</button>
           </div>
         </GlassCard>
       )}
