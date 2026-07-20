@@ -527,6 +527,64 @@ const FOOD_DB = [
 ];
 
 // ─── NATURAL LANGUAGE FOOD PARSER ────────────────────────────────────────────
+// Curated food database — loaded once from /foods.json (our own static asset, no external API).
+// Falls back to the small bundled FOOD_DB until loaded.
+let FOODS = null;
+function foodList() { return FOODS || FOOD_DB; }
+async function loadFoodDB() {
+  if (FOODS) return;
+  try {
+    const r = await fetch('foods.json', { cache: 'force-cache' });
+    const data = await r.json();
+    const norm = data.map(d => ({ n: d.name, a: d.aliases || [], k: d.k, p: d.p, c: d.c, f: d.f, g: d.g, cat: d.cat, portion: d.portion }));
+    const seen = new Set(norm.map(x => x.n));
+    FOODS = norm.concat(FOOD_DB.filter(x => !seen.has(x.n)));
+  } catch (_) { FOODS = FOOD_DB; }
+}
+// Local food search — instant, accurate, no third-party API. Ranks curated matches.
+function searchFoodsLocal(query, limit = 12) {
+  const q = String(query || '').toLowerCase().trim();
+  if (q.length < 2) return [];
+  const scored = [];
+  for (const it of foodList()) {
+    let s = 0;
+    for (const c of [it.n, ...(it.a || [])]) {
+      if (c === q) { s = 100; break; }
+      if (c.startsWith(q) || q.startsWith(c)) s = Math.max(s, 82);
+      else if (c.includes(q) || q.includes(c)) s = Math.max(s, 66);
+      else { const qw = new Set(q.split(' ').filter(w => w.length > 2)); const ov = c.split(' ').filter(w => qw.has(w)).length; if (ov) s = Math.max(s, 50 * ov / Math.max(qw.size, 1)); }
+    }
+    if (s >= 45) scored.push({ it, s });
+  }
+  scored.sort((a, b) => b.s - a.s);
+  return scored.slice(0, limit).map(({ it }) => {
+    const g = it.g || 100, f = g / 100;
+    return { name: it.n, brand: null, serving: it.portion || `${g}g`, kcal: Math.round(it.k * f), protein: Math.round(it.p * f * 10) / 10, carbs: Math.round(it.c * f * 10) / 10, fat: Math.round(it.f * f * 10) / 10, source: 'curated' };
+  });
+}
+
+// Score a food phrase against the DB (exact > prefix > substring > word-overlap).
+function scoreFoodPhrase(food) {
+  let best = null, score = 0;
+  for (const item of foodList()) {
+    for (const c of [item.n, ...(item.a || [])]) {
+      let s = 0;
+      if (food === c) s = 100;
+      else if (food.startsWith(c) || c.startsWith(food)) s = 88;
+      else if (food.includes(c) || c.includes(food)) s = 75 * Math.min(food.length,c.length)/Math.max(food.length,c.length);
+      else {
+        const fw = new Set(food.split(' ').filter(w=>w.length>2));
+        const cw = c.split(' ').filter(w=>w.length>2);
+        const overlap = cw.filter(w=>fw.has(w)).length;
+        if (overlap) s = 55 * overlap / Math.max(fw.size,cw.length);
+      }
+      if (s > score) { score = s; best = item; }
+    }
+    if (score === 100) break;
+  }
+  return { best, score };
+}
+
 function parseFood(text) {
   const WORD_QTY = {a:1,an:1,one:1,two:2,three:3,four:4,five:5,six:6,half:0.5,quarter:0.25,double:2,couple:2,large:1.4,big:1.4,small:0.65,medium:1,tiny:0.4,handful:0.5,few:3};
   const FILLERS = ['of','the','some','bit','piece','slice','slices','cup','cups','bowl','bowls','glass','glasses','serving','portion','scoop','tablespoon','tbsp','teaspoon','tsp','ml','grams','g','with','on'];
@@ -543,45 +601,38 @@ function parseFood(text) {
     const nm = food.match(/^(\d+\.?\d*)\s*/);
     if (nm) { qty = parseFloat(nm[1]); food = food.slice(nm[0].length).trim(); }
 
-    // Leading word quantity
-    for (const [word, val] of Object.entries(WORD_QTY)) {
-      if (new RegExp(`^${word}\\b\\s*`,'i').test(food)) {
-        qty *= val;
-        food = food.replace(new RegExp(`^${word}\\b\\s*`,'i'),'').trim();
-        break;
-      }
-    }
-
-    // Strip filler words from the front
-    let changed = true;
-    while (changed) {
-      changed = false;
-      for (const f of FILLERS) {
-        if (new RegExp(`^${f}\\s+`,'i').test(food)) {
-          food = food.replace(new RegExp(`^${f}\\s+`,'i'),'').trim();
-          changed = true;
-        }
-      }
-    }
-    if (!food) continue;
-
-    // Match against FOOD_DB
+    // Try the FULL phrase first (only the numeric qty removed). This protects
+    // branded / proper-noun foods where a size word is part of the name — e.g.
+    // "big mac", "medium fries" must NOT be read as big×mac or medium×fries.
     let best = null, bestScore = 0;
-    for (const item of FOOD_DB) {
-      for (const c of [item.n, ...item.a]) {
-        let score = 0;
-        if (food === c) score = 100;
-        else if (food.startsWith(c) || c.startsWith(food)) score = 88;
-        else if (food.includes(c) || c.includes(food)) score = 75 * Math.min(food.length,c.length)/Math.max(food.length,c.length);
-        else {
-          const fw = new Set(food.split(' ').filter(w=>w.length>2));
-          const cw = c.split(' ').filter(w=>w.length>2);
-          const overlap = cw.filter(w=>fw.has(w)).length;
-          if (overlap) score = 55 * overlap / Math.max(fw.size,cw.length);
+    const full = scoreFoodPhrase(food);
+    if (full.score >= 85) {
+      best = full.best; bestScore = full.score;
+    } else {
+      // Leading word quantity
+      for (const [word, val] of Object.entries(WORD_QTY)) {
+        if (new RegExp(`^${word}\\b\\s*`,'i').test(food)) {
+          qty *= val;
+          food = food.replace(new RegExp(`^${word}\\b\\s*`,'i'),'').trim();
+          break;
         }
-        if (score > bestScore) { bestScore = score; best = item; }
       }
-      if (bestScore===100) break;
+
+      // Strip filler words from the front
+      let changed = true;
+      while (changed) {
+        changed = false;
+        for (const f of FILLERS) {
+          if (new RegExp(`^${f}\\s+`,'i').test(food)) {
+            food = food.replace(new RegExp(`^${f}\\s+`,'i'),'').trim();
+            changed = true;
+          }
+        }
+      }
+      if (!food) continue;
+
+      const m = scoreFoodPhrase(food);
+      best = m.best; bestScore = m.score;
     }
 
     if (best && bestScore >= 30) {
@@ -2820,18 +2871,16 @@ function NutritionScreen({ navigate }) {
       if (items.length === 0) {
         items = [{ id: Date.now(), name: t, kcal:150, protein:8, carbs:15, fat:6, displayQty:1, estimated:true }];
       }
-      setParsedItems(items);
+      // Accuracy pass: upgrade any rough estimate from our OWN curated DB (local, no API)
+      const upgraded = items.map(it => {
+        if (!it.estimated) return it;
+        const local = searchFoodsLocal(it.name, 1);
+        if (local.length) return { ...nutritionResultToItem(local[0], it.displayQty || 1), id: it.id };
+        return it;
+      });
+      setParsedItems(upgraded);
       setAiState('review');
-      // Accuracy pass: replace any 'estimated' items with a real DB lookup (curated/OFF/USDA)
-      const est = items.filter(i => i.estimated);
-      for (const it of est) {
-        const res = await searchNutrition({ query: it.name });
-        if (res && res.length) {
-          const better = nutritionResultToItem(res[0], it.displayQty || 1);
-          setParsedItems(prev => prev.map(p => p.id === it.id ? { ...better, id: p.id } : p));
-        }
-      }
-    }, 500);
+    }, 400);
   };
 
   const confirmLog = () => {
@@ -2876,13 +2925,11 @@ function NutritionScreen({ navigate }) {
   };
   const removeParsed = (id) => setParsedItems(prev => prev.filter(i => i.id !== id));
   const addParsedItem = (item) => setParsedItems(prev => [...prev, item]);
-  const runFoodSearch = async (q) => {
+  const runFoodSearch = (q) => {
     const query = (q || '').trim();
     if (query.length < 2) { setAddResults(null); return; }
-    setSearching(true);
-    const res = await searchNutrition({ query });
-    setSearching(false);
-    setAddResults(res);
+    // Local, instant, accurate — our curated DB, no external API
+    setAddResults(searchFoodsLocal(query));
   };
   const updateParsedQty = (id, delta) => {
     setParsedItems(prev => prev.map(item => {
@@ -4134,6 +4181,8 @@ function App() {
       if (dest) setScreen(dest);
       setAuthChecked(true);
     };
+
+    loadFoodDB(); // fetch the curated food database once (static asset)
 
     // Hard 3s timeout — never leave user stuck on loading screen
     const timeout = setTimeout(() => finish(null), 3000);
