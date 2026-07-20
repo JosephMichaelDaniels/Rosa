@@ -1,585 +1,493 @@
-<title>SEZE — Developer App Report</title>
+<title>SEZE — Developer Report (live)</title>
 <style>
-:root{
- --bg:#faf7f8; --panel:#ffffff; --ink:#1A0D14; --muted:#6b6570; --line:#ece5e9;
- --pink:#E04486; --teal:#15B5A6; --deep:#B72B6D; --soft:#fff0f5;
-}
-:root[data-theme=dark],
+:root{ --bg:#faf7f8; --panel:#fff; --ink:#1A0D14; --muted:#6b6570; --line:#ece5e9; --pink:#E04486; --teal:#15B5A6; --soft:#fff0f5; }
 @media (prefers-color-scheme:dark){ :root{ --bg:#131016; --panel:#1c181f; --ink:#f4eef1; --muted:#a89fa8; --line:#2c2630; --soft:#241a20; } }
 :root[data-theme=dark]{ --bg:#131016; --panel:#1c181f; --ink:#f4eef1; --muted:#a89fa8; --line:#2c2630; --soft:#241a20; }
+:root[data-theme=light]{ --bg:#faf7f8; --panel:#fff; --ink:#1A0D14; --muted:#6b6570; --line:#ece5e9; --soft:#fff0f5; }
 *{box-sizing:border-box}
 body{margin:0;background:var(--bg);color:var(--ink);font-family:system-ui,-apple-system,Segoe UI,Roboto,Helvetica,Arial,sans-serif;line-height:1.5;font-size:15px}
 .wrap{max-width:1000px;margin:0 auto;padding:0 20px 80px}
-.hero{background:linear-gradient(135deg,#E04486,#B72B6D);color:#fff;padding:44px 20px 40px;margin-bottom:32px}
-.hero .inner{max-width:1000px;margin:0 auto}
-.mark{width:52px;height:26px;margin-bottom:18px}
-.hero h1{font-family:Georgia,'Times New Roman',serif;font-size:34px;margin:0 0 6px;letter-spacing:-.01em}
-.hero .sub{opacity:.9;font-size:15px;max-width:70ch}
-.meta{display:flex;flex-wrap:wrap;gap:8px 22px;margin-top:20px;font-size:12.5px}
-.meta b{opacity:.75;font-weight:600}
-.meta a{color:#fff;text-decoration:underline;text-underline-offset:2px}
-h2{font-family:Georgia,serif;font-size:22px;margin:40px 0 14px;letter-spacing:-.01em}
-h2 .n{color:var(--pink);font-size:13px;font-family:system-ui;font-weight:700;letter-spacing:.08em;display:block;margin-bottom:2px;text-transform:uppercase}
-p.lead{color:var(--muted);max-width:78ch}
-.tiles{display:grid;grid-template-columns:repeat(4,1fr);gap:12px;margin:20px 0}
-.tile{background:var(--panel);border:1px solid var(--line);border-radius:14px;padding:16px}
-.tile .big{font-family:Georgia,serif;font-size:30px;line-height:1}
-.tile .lab{font-size:11px;text-transform:uppercase;letter-spacing:.07em;color:var(--muted);margin-top:6px}
-.tile.ok .big{color:#0E9F6E} .tile.mit .big{color:#B7791F} .tile.road .big{color:var(--muted)} .tile.crit .big{color:#c0392b}
-.card{background:var(--panel);border:1px solid var(--line);border-radius:16px;padding:20px;margin:14px 0}
-.verify{border-left:4px solid var(--teal)}
-.vstep{display:flex;gap:12px;align-items:flex-start;padding:9px 0;border-bottom:1px solid var(--line)}
-.vstep:last-child{border-bottom:none}
-.vstep .ic{color:var(--teal);font-weight:800;flex-shrink:0}
-.vstep code{background:var(--soft);border-radius:5px;padding:1px 6px;font-size:12.5px}
-table{width:100%;border-collapse:collapse;font-size:13.5px}
+.hero{background:linear-gradient(135deg,#E04486,#B72B6D);color:#fff;padding:42px 20px 38px}
+.hero .in{max-width:1000px;margin:0 auto}
+.badge{display:inline-block;background:rgba(255,255,255,0.2);border:1px solid rgba(255,255,255,0.35);border-radius:20px;padding:3px 11px;font-size:11px;font-weight:600;letter-spacing:.06em;text-transform:uppercase;margin-bottom:14px}
+.hero h1{font-family:Georgia,serif;font-size:33px;margin:0 0 6px}
+.hero .sub{opacity:.9;font-size:14.5px;max-width:78ch}
+.meta{display:flex;flex-wrap:wrap;gap:7px 20px;margin-top:18px;font-size:12.5px}
+.meta b{opacity:.75} .meta a{color:#fff;text-decoration:underline;text-underline-offset:2px}
+h2{font-family:Georgia,serif;font-size:21px;margin:38px 0 6px}
+h2 .n{color:var(--pink);font-size:12px;font-family:system-ui;font-weight:700;letter-spacing:.09em;display:block;margin-bottom:3px;text-transform:uppercase}
+p.lead{color:var(--muted);max-width:80ch;margin:6px 0 0}
+.tiles{display:grid;grid-template-columns:repeat(4,1fr);gap:10px;margin:18px 0}
+.tile{background:var(--panel);border:1px solid var(--line);border-radius:14px;padding:14px;text-align:center}
+.tile .big{font-family:Georgia,serif;font-size:26px;line-height:1;color:var(--pink)}
+.tile .lab{font-size:10px;text-transform:uppercase;letter-spacing:.06em;color:var(--muted);margin-top:6px}
+.status-row{display:grid;grid-template-columns:repeat(4,1fr);gap:10px;margin:14px 0 4px}
+.sc{border-radius:14px;padding:14px;text-align:center;color:#fff}
+.sc .b{font-family:Georgia,serif;font-size:26px;line-height:1} .sc .l{font-size:11px;margin-top:4px;opacity:.95}
+.card{background:var(--panel);border:1px solid var(--line);border-radius:16px;padding:18px;margin:14px 0}
+.log{border-left:3px solid var(--pink);padding:2px 0 2px 16px;margin:16px 0}
+.logtop{display:flex;justify-content:space-between;align-items:center}
+.date{font-size:11px;color:var(--muted)}
+.ltitle{font-family:Georgia,serif;font-size:16.5px;margin:3px 0 4px}
+.lsum{font-size:13.5px;color:var(--muted)}
+.ver{margin-top:7px;font-size:12px;color:var(--teal);background:var(--soft);border-radius:8px;padding:6px 10px}
+.mono{font-family:ui-monospace,SFMono-Regular,Menlo,monospace;font-size:12px;color:var(--muted)}
+.vrow{display:flex;gap:12px;align-items:flex-start;padding:10px 0;border-bottom:1px solid var(--line)}
+.vrow:last-child{border:none}
+.vok{background:#0E9F6E;color:#fff;font-size:10px;font-weight:700;letter-spacing:.05em;border-radius:6px;padding:3px 7px;flex-shrink:0;margin-top:1px}
+.ev{color:var(--muted);font-size:12.5px;margin-top:2px}
 .scroll{overflow-x:auto;border:1px solid var(--line);border-radius:14px;background:var(--panel)}
-th{text-align:left;font-size:11px;text-transform:uppercase;letter-spacing:.06em;color:var(--muted);padding:12px 12px;border-bottom:1px solid var(--line);position:sticky;top:0;background:var(--panel)}
-td{padding:11px 12px;border-bottom:1px solid var(--line);vertical-align:top}
+table{width:100%;border-collapse:collapse;font-size:13.5px}
+th{text-align:left;font-size:11px;text-transform:uppercase;letter-spacing:.06em;color:var(--muted);padding:11px 12px;border-bottom:1px solid var(--line);position:sticky;top:0;background:var(--panel)}
+td{padding:10px 12px;border-bottom:1px solid var(--line);vertical-align:top}
 tr:last-child td{border-bottom:none}
-.mono{font-family:ui-monospace,SFMono-Regular,Menlo,monospace;font-size:12px;color:var(--muted);white-space:nowrap}
 .sev{display:inline-block;width:20px;height:20px;line-height:20px;text-align:center;border-radius:6px;color:#fff;font-size:11px;font-weight:700}
-.ttl{font-weight:600}
-.loc{color:var(--muted);font-size:11.5px;margin-top:2px}
-.note{color:var(--teal);font-size:11.5px;margin-top:4px}
-.st{display:inline-block;border:1px solid;border-radius:20px;padding:2px 9px;font-size:11px;font-weight:600;white-space:nowrap}
-.pill{display:inline-block;border:1px solid;border-radius:20px;padding:1px 9px;font-size:11.5px;font-weight:600}
-ul.rl{margin:8px 0 0;padding-left:18px;color:var(--muted)} ul.rl li{margin:5px 0}
-.grid2{display:grid;grid-template-columns:1fr 1fr;gap:14px}
-.kv{display:flex;justify-content:space-between;gap:10px;padding:7px 0;border-bottom:1px solid var(--line);font-size:13.5px}
-.kv:last-child{border:none} .kv b{color:var(--muted);font-weight:600}
-.foot{color:var(--muted);font-size:12px;margin-top:40px;text-align:center}
-@media(max-width:720px){.tiles,.grid2{grid-template-columns:1fr 1fr}}
+.ttl{font-weight:600} .loc{color:var(--muted);font-size:11.5px;margin-top:2px}
+.st,.pill{display:inline-block;border:1px solid;border-radius:20px;padding:2px 9px;font-size:11px;font-weight:600;white-space:nowrap}
+.rd{display:flex;align-items:center;gap:12px;padding:11px 0;border-bottom:1px solid var(--line)}
+.rd:last-child{border:none}
+.rdmark{width:30px;height:22px;border-radius:8px;display:flex;align-items:center;justify-content:center;font-size:9px;font-weight:700;color:var(--muted);background:var(--soft);flex-shrink:0}
+.rdmark.next{background:var(--pink);color:#fff}
+.rdt{flex:1;font-size:13.5px}
+.dec{padding:11px 0;border-bottom:1px solid var(--line)} .dec:last-child{border:none}
+.dt{font-weight:600;font-size:14px} .dr{color:var(--muted);font-size:12.5px;margin-top:3px}
+.kv{display:flex;gap:12px;padding:9px 0;border-bottom:1px solid var(--line);font-size:13px}
+.kv:last-child{border:none} .kv b{color:var(--muted);font-weight:600;min-width:150px;flex-shrink:0}
+.foot{color:var(--muted);font-size:12.5px;margin-top:40px;background:var(--panel);border:1px solid var(--line);border-radius:14px;padding:16px}
+.foot code{background:var(--soft);border-radius:5px;padding:1px 6px;font-size:12px}
+@media(max-width:720px){.tiles,.status-row{grid-template-columns:repeat(2,1fr)} .kv b{min-width:110px}}
 </style>
 
-<div class="hero"><div class="inner">
- <svg class="mark" viewBox="0 0 100 50" fill="none"><path d="M50,25 C42,12 29,9 20,15 C9,22 9,28 20,35 C29,41 42,38 50,25 C58,12 71,9 80,15 C91,22 91,28 80,35 C71,41 58,38 50,25 Z" stroke="#fff" stroke-width="7" stroke-linecap="round" stroke-linejoin="round"/></svg>
- <h1>SEZE — Developer App Report</h1>
- <div class="sub">Full-stack vetting, remediation and backend verification of the SEZE women's fitness &amp; nutrition app. Covers a 7-persona audit, security hardening, real data persistence, and a prioritised risk register.</div>
+<div class="hero"><div class="in">
+ <span class="badge">Live developer report · updated 2026-07-19</span>
+ <h1>SEZE — Developer Report</h1>
+ <div class="sub">Women&#x27;s fitness &amp; nutrition — postnatal, pregnancy, strength. The living engineering record: build log, verifications, findings, risks, decisions and roadmap. Regenerated from a version-controlled source in the repo.</div>
  <div class="meta">
-  <span><b>Date</b> 19 Jul 2026</span>
   <span><b>Version</b> 1.0.0-beta</span>
   <span><b>Live</b> <a href="https://rosa-app-ten.vercel.app">rosa-app-ten.vercel.app</a></span>
   <span><b>Repo</b> github.com/JosephMichaelDaniels/Rosa</span>
-  <span><b>Backend</b> Supabase (cttyprfieqydaiifncbu)</span>
+  <span><b>Backend</b> Supabase · cttyprfieqydaiifncbu (eu-west-2)</span>
  </div>
 </div></div>
 
 <div class="wrap">
 
-<h2><span class="n">01 — Executive summary</span>What changed</h2>
-<p class="lead">This engagement moved SEZE from a visually-polished shell with a broken backend to a functional, secured app where real accounts persist and personalise correctly. A seven-expert audit (product, design, front-end, back-end, nutrition, QA, security) surfaced <b>120 raw findings, consolidated to 70</b>. The dominant defect was systemic: the app read/wrote a <code>profiles</code> table that does not exist (real table: <code>rosa_users</code>), so onboarding, login routing, personalised targets, workouts and logging all silently failed. That class of bug is now fixed and <b>verified end-to-end against the live database</b>. Alongside, three security holes (a nutrition-data RLS leak, feedback spoofing, mutable function search_path) and two clinical-safety gaps (calorie deficits for pregnant/breastfeeding users) were closed.</p>
-
-<div class="tiles">
- <div class="tile crit"><div class="big">70</div><div class="lab">Audit findings (9 critical)</div></div>
- <div class="tile ok"><div class="big">27</div><div class="lab">Fixed &amp; verified</div></div>
- <div class="tile mit"><div class="big">8</div><div class="lab">Mitigated / partial</div></div>
- <div class="tile road"><div class="big">35</div><div class="lab">Roadmap / deferred</div></div>
+<h2><span class="n">Snapshot</span>Where things stand</h2>
+<p class="lead">Live counts baked in at generation time. In-app live metrics live in the Admin panel.</p>
+<div class="tiles"><div class="tile"><div class="big">4</div><div class="lab">Users</div></div><div class="tile"><div class="big">4</div><div class="lab">Onboarded</div></div><div class="tile"><div class="big">4</div><div class="lab">Free</div></div><div class="tile"><div class="big">0</div><div class="lab">Trial</div></div><div class="tile"><div class="big">0</div><div class="lab">Paying</div></div><div class="tile"><div class="big">2</div><div class="lab">Sessions</div></div><div class="tile"><div class="big">22</div><div class="lab">Meals logged</div></div><div class="tile"><div class="big">5</div><div class="lab">Feedback</div></div><div class="tile"><div class="big">55</div><div class="lab">Food items (curated)</div></div><div class="tile"><div class="big">9</div><div class="lab">DB tables</div></div><div class="tile"><div class="big">3</div><div class="lab">Admins</div></div></div>
+<div class="status-row">
+ <div class="sc" style="background:#0E9F6E"><div class="b">35</div><div class="l">Fixed &amp; verified</div></div>
+ <div class="sc" style="background:#B7791F"><div class="b">7</div><div class="l">Mitigated</div></div>
+ <div class="sc" style="background:#6B7280"><div class="b">27</div><div class="l">Roadmap</div></div>
+ <div class="sc" style="background:#7C6FD0"><div class="b">1</div><div class="l">Deferred (by decision)</div></div>
 </div>
+<p class="lead">This report is the living engineering record for SEZE. It began as a brand + UI overhaul and grew into a full-stack functionality pass: fixing a systemic persistence failure (the app wrote to a non-existent &#x27;profiles&#x27; table), closing security and clinical-safety holes, wiring real user data across every screen, adding a nutrition data layer, an admin panel, a reviewable feedback system, and a per-programme workout engine. Every backend flow below has been verified against the live database.</p>
 
-<h2><span class="n">02 — Backend verification</span>Proof the data now persists</h2>
-<p class="lead">A fresh account was created and driven through the full journey; every write was confirmed directly in Postgres. This is the definitive answer to "is it logging in Supabase?" — yes.</p>
-<div class="card verify">
- <div class="vstep"><span class="ic">1</span><div><b>Sign-up →</b> new <code>auth.users</code> row created; DB trigger <code>handle_new_user()</code> auto-inserts the matching <code>rosa_users</code> profile with <code>full_name</code> + consent metadata. <i>Verified.</i></div></div>
- <div class="vstep"><span class="ic">2</span><div><b>Log-in →</b> reads <code>rosa_users.onboarding_complete</code> and routes a new user to onboarding (not home). The returning-user "stuck in onboarding" bug is gone. <i>Verified.</i></div></div>
- <div class="vstep"><span class="ic">3</span><div><b>Onboarding save →</b> full profile upserted: <code>life_stage=new_baby</code>, <code>programme_id=new_mum</code>, goals, diet, height/weight, equipment, and computed <code>target_kcal=2450</code> / P117 / C379 / F52. <i>Verified in DB.</i></div></div>
- <div class="vstep"><span class="ic">4</span><div><b>Safety →</b> the new-mum (breastfeeding) profile received a <b>+330 kcal lactation adjustment, not a deficit</b>; floors enforce 1300–1600 kcal minimums. <i>Verified: 2450 kcal target.</i></div></div>
- <div class="vstep"><span class="ic">5</span><div><b>Real data on screen →</b> Home greets "Rosa", 0-day streak, and Nutrition shows the live 2450 kcal / 117g / 379g / 52g targets — no more mock "Sarah / 1800". <i>Verified.</i></div></div>
- <div class="vstep"><span class="ic">6</span><div><b>Meal logging →</b> "2 eggs on toast with a latte" wrote 3 rows to <code>rosa_nutrition_logs</code> (egg 186, bread 93, latte 150 kcal, source=text_ai). <i>Verified in DB.</i></div></div>
-</div>
+<h2><span class="n">01 — Build log</span>Every change, newest first</h2>
+<div class="log">
+      <div class="logtop"><span class="mono">b5fa24f</span><span class="date">2026-07-19</span></div>
+      <div class="ltitle">Nutrition logging: meal selector, add/omit foods, real-DB accuracy</div>
+      <div class="lsum">Choose which meal to log to (Breakfast/Lunch/Dinner/Snack); add foods via real search (curated + Open Food Facts + USDA) and remove foods before saving; unknown foods auto-upgrade from a flat estimate to a real lookup; removing a saved meal also deletes it from Supabase; bottom nav added to programme detail; workout exit changed to a clear ×.</div><div class="ver">✓ Verified — Logged 3 items all to Lunch; &#x27;starbucks caramel&#x27; → curated Frappuccino 380kcal; meal_type persisted.</div>
+    </div><div class="log">
+      <div class="logtop"><span class="mono">7603edf</span><span class="date">2026-07-19</span></div>
+      <div class="ltitle">In-app admin panel</div>
+      <div class="lsum">AdminScreen with Overview/Users/Feedback/Requests tabs; plan management (free/trial/paying); admin-only SECURITY DEFINER RPCs; feedback category selector powers &#x27;most requested&#x27;; prominent Profile entry.</div><div class="ver">✓ Verified — Anon denied on every admin RPC; plan toggle persisted; overview shows real counts.</div>
+    </div><div class="log">
+      <div class="logtop"><span class="mono">e598934</span><span class="date">2026-07-19</span></div>
+      <div class="ltitle">Fix: Progress/Programmes showed demo data to real accounts</div>
+      <div class="lsum">Progress totals, weekly chart, streak, programme progress now from real rosa_sessions (new account = zeros). Badges earned from real activity only and persisted to rosa_badges. Programmes split into &#x27;Your programme&#x27; + &#x27;Explore other&#x27;; ACTIVE follows the user&#x27;s real choice. &#x27;Start this programme&#x27; now persists the switch.</div><div class="ver">✓ Verified — New account shows 0 sessions / 0% / no badges; programme switch new_mum→booty persisted.</div>
+    </div><div class="log">
+      <div class="logtop"><span class="mono">8db74c6</span><span class="date">2026-07-19</span></div>
+      <div class="ltitle">Admin access + case-insensitive check</div>
+      <div class="lsum">Added elvarosaflores@seze.app to the allowlist; is_seze_admin() now compares case-insensitively; admins get a &#x27;Review feedback&#x27;/admin entry on Profile — no dev URL needed.</div><div class="ver">✓ Verified — Non-admin does not see the admin card; admin does.</div>
+    </div><div class="log">
+      <div class="logtop"><span class="mono">2e1fafb</span><span class="date">2026-07-19</span></div>
+      <div class="ltitle">Dev mode + reviewable feedback</div>
+      <div class="lsum">Dev button restored (localhost always; production via sticky ?dev=1). Feedback works logged-out (anon user_id null; RLS blocks impersonation), with optional email and real success/error states. Feedback review screen with status triage. Workout-content engine (distinct sessions per programme).</div><div class="ver">✓ Verified — Anon feedback 201; impersonation 401; triage persisted.</div>
+    </div><div class="log">
+      <div class="logtop"><span class="mono">7336642</span><span class="date">2026-07-18</span></div>
+      <div class="ltitle">Backend functionality: real user data, safe nutrition, auth flow</div>
+      <div class="lsum">AppData provider loads real rosa_users + today&#x27;s nutrition + session streak. Home/Nutrition/Profile show real data. Onboarding upserts full profile with life-stage-safe macro targets. Auth: Sign Up→signup, verify→onboarding, sign out, Apple/Meta &#x27;coming soon&#x27;. iOS 16px input fix; a11y.</div><div class="ver">✓ Verified — Signup→trigger→onboarding save (2450kcal safe)→real targets→meal logging all persist.</div>
+    </div><div class="log">
+      <div class="logtop"><span class="mono">e0b49f5</span><span class="date">2026-07-18</span></div>
+      <div class="ltitle">Backend fixes + security hardening + nutrition data</div>
+      <div class="lsum">profiles→rosa_users (maybeSingle), onboarding macro targets, workout session logging. Security: fixed a SECURITY DEFINER view leaking all users&#x27; nutrition data, feedback-spoof policy, function search_path. Deployed nutrition-search edge fn + seeded 55 fast-food items.</div><div class="ver">✓ Verified — Supabase security advisor clear except the dashboard leaked-password toggle.</div>
+    </div><div class="log">
+      <div class="logtop"><span class="mono">4d77089</span><span class="date">2026-07-18</span></div>
+      <div class="ltitle">SEZE rebrand</div>
+      <div class="lsum">Real brand infinity logo (extracted transparent white/pink PNGs), Poppins Bold wordmark, exact palette (#E04486 / #15B5A6), favicon + app icons + manifest, photo-rich rebuild of every screen using real model photography, unified vector-icon library (emojis removed), Train/Eat/[Home ∞]/Progress/Me nav.</div><div class="ver">✓ Verified — Logo, splash, auth, home, programmes verified in-browser; matches brand pack.</div>
+    </div>
 
-<h2><span class="n">03 — Security &amp; safety fixes</span>Critical closures</h2>
-<div class="grid2">
- <div class="card"><b style="color:#c0392b">SEC-01 · Data leak (critical)</b><p class="lead" style="margin:8px 0 0">The <code>rosa_daily_nutrition</code> view ran as owner (default <code>security_invoker=off</code>), bypassing RLS — any anonymous caller could read <b>every user's</b> nutrition totals. Fixed: <code>security_invoker=on</code> + revoked anon access.</p></div>
- <div class="card"><b style="color:#c0392b">NU-02 · Clinical safety (critical)</b><p class="lead" style="margin:8px 0 0">Fat-loss deficits could be prescribed to pregnant / breastfeeding users. Fixed: life-stage now overrides goal — perinatal stages get energy <b>added</b>, never subtracted, with hard kcal floors.</p></div>
- <div class="card"><b style="color:var(--pink)">SEC-03 · Feedback spoofing</b><p class="lead" style="margin:8px 0 0">Insert policy was <code>WITH CHECK (true)</code> — anyone could write feedback as any user. Fixed: authenticated-only, <code>auth.uid()=user_id</code>.</p></div>
- <div class="card"><b style="color:var(--pink)">SEC-04 · Function hardening</b><p class="lead" style="margin:8px 0 0">SECURITY DEFINER functions had mutable <code>search_path</code>. Fixed: pinned to empty; revoked needless public RPC on the signup trigger.</p></div>
-</div>
+<h2><span class="n">02 — Verification log</span>Proven against the live database</h2>
+<div class="card"><div class="vrow"><span class="vok">PASS</span><div><b>Sign-up → profile row</b><div class="ev">New auth.users row; trigger handle_new_user() auto-created rosa_users with full_name + consent metadata.</div></div></div><div class="vrow"><span class="vok">PASS</span><div><b>Log-in → routing</b><div class="ev">Reads rosa_users.onboarding_complete; new user routed to onboarding, not home.</div></div></div><div class="vrow"><span class="vok">PASS</span><div><b>Onboarding → persistence</b><div class="ev">Upsert wrote life_stage, goals, programme_id, height/weight, targets. New-mum got 2450kcal (lactation +330, NOT a deficit).</div></div></div><div class="vrow"><span class="vok">PASS</span><div><b>Nutrition logging</b><div class="ev">3 items written to rosa_nutrition_logs with chosen meal_type=lunch; searched Starbucks Frappuccino logged at 380kcal.</div></div></div><div class="vrow"><span class="vok">PASS</span><div><b>Nutrition search accuracy</b><div class="ev">&#x27;starbucks caramel&#x27; returned curated Frappuccino (SEZE) top, then Open Food Facts results.</div></div></div><div class="vrow"><span class="vok">PASS</span><div><b>Programme switch</b><div class="ev">&#x27;Start this programme&#x27; persisted programme_id new_mum→booty; all screens follow it.</div></div></div><div class="vrow"><span class="vok">PASS</span><div><b>Progress = real data</b><div class="ev">New account shows 0 sessions / 0.0 avg / 0% / no badges (was inheriting demo data).</div></div></div><div class="vrow"><span class="vok">PASS</span><div><b>Feedback (anonymous)</b><div class="ev">Anon submit HTTP 201; impersonation attempt 401; anon read of others&#x27; feedback empty.</div></div></div><div class="vrow"><span class="vok">PASS</span><div><b>Feedback (admin review + triage)</b><div class="ev">Admin sees all; status change to &#x27;reviewed&#x27; persisted in Postgres.</div></div></div><div class="vrow"><span class="vok">PASS</span><div><b>Admin RPC security</b><div class="ev">admin_overview / admin_users return &#x27;not authorised&#x27; for anon; plan toggle persisted (free→trial + start date).</div></div></div><div class="vrow"><span class="vok">PASS</span><div><b>Security: RLS data leak</b><div class="ev">rosa_daily_nutrition view set security_invoker=on; anon can no longer read all users&#x27; totals.</div></div></div></div>
 
-<h2><span class="n">04 — Infrastructure delivered</span>New backend &amp; tooling</h2>
-<div class="grid2">
- <div class="card"><div class="kv"><b>DB migrations</b><span>3 applied</span></div><div class="kv"><b>rosa_users</b><span>+7 onboarding columns</span></div><div class="kv"><b>rosa_daily_logs</b><span>new (water/mood) + RLS</span></div><div class="kv"><b>rosa_food_items</b><span>new · 55 fast-food items</span></div></div>
- <div class="card"><div class="kv"><b>Edge function</b><span>nutrition-search v1</span></div><div class="kv"><b>Sources</b><span>Open Food Facts + USDA + curated</span></div><div class="kv"><b>Git</b><span>3 commits pushed to main</span></div><div class="kv"><b>Deploy</b><span>Vercel prod (live)</span></div></div>
-</div>
-<p class="lead" style="margin-top:12px"><b>Nutrition data:</b> the <code>nutrition-search</code> function merges a curated fast-food dataset (McDonald's, KFC, Greggs, Nando's, Subway, Starbucks, Five Guys, Wagamama…) with live Open Food Facts and USDA FoodData Central lookups, returning normalised macros. Tested and returning results. <b>Action:</b> add a free USDA API key for full USDA coverage (currently the rate-limited DEMO_KEY). AI/LLM analysis is intentionally deferred per the testing-phase decision.</p>
-
-<h2><span class="n">05 — Findings register</span>All 70, with status</h2>
-<p class="lead">Severity: <span class="sev" style="background:#c0392b">C</span> critical · <span class="sev" style="background:#E04486">H</span> high · <span class="sev" style="background:#B7791F">M</span> medium · <span class="sev" style="background:#6B7280">L</span> low. Full detail (problem, impact, fix, personas) is in <code>docs/audit-register.json</code> in the repo.</p>
-<div class="scroll"><table>
-<thead><tr><th>ID</th><th>Sev</th><th>Finding</th><th>Status</th></tr></thead>
-<tbody>
-<tr>
+<h2><span class="n">03 — Findings register</span>70 audit findings · current status</h2>
+<p class="lead">Severity: <span class="sev" style="background:#c0392b">C</span> critical · <span class="sev" style="background:#E04486">H</span> high · <span class="sev" style="background:#B7791F">M</span> medium · <span class="sev" style="background:#6B7280">L</span> low. Full detail lives in <code>docs/audit-register.json</code>.</p>
+<div class="scroll"><table><thead><tr><th>ID</th><th>Sev</th><th>Finding</th><th>Status</th></tr></thead><tbody><tr>
       <td class="mono">BE-01</td>
       <td><span class="sev" style="background:#c0392b">C</span></td>
-      <td><div class="ttl">All profile reads target non-existent &#x27;profiles&#x27; table — login and app-boot routing silently fail</div><div class="loc">backend · AuthScreen.handleEmail line 1035; getProfileRoute lines 3246-3253 (App</div></td>
+      <td><div class="ttl">All profile reads target non-existent &#x27;profiles&#x27; table — login and app-boot routing silently fail</div><div class="loc">backend</div></td>
       <td><span class="st" style="color:#0E9F6E;border-color:#0E9F6E">Fixed &amp; verified</span></td>
-    </tr>
-<tr>
+    </tr><tr>
       <td class="mono">BE-02</td>
       <td><span class="sev" style="background:#c0392b">C</span></td>
-      <td><div class="ttl">Onboarding write targets non-existent table with non-existent columns — all onboarding data is discarded</div><div class="loc">onboarding · OnboardingScreen.next() final step, lines 1416-1429</div></td>
+      <td><div class="ttl">Onboarding write targets non-existent table with non-existent columns — all onboarding data is discarded</div><div class="loc">onboarding</div></td>
       <td><span class="st" style="color:#0E9F6E;border-color:#0E9F6E">Fixed &amp; verified</span></td>
-    </tr>
-<tr>
+    </tr><tr>
       <td class="mono">BE-03</td>
       <td><span class="sev" style="background:#c0392b">C</span></td>
-      <td><div class="ttl">No rosa_users row is ever created at signup (no confirmed trigger, and app UPDATEs instead of upserting)</div><div class="loc">auth · Signup lines 1017-1031; onboarding persistence line 1418 (UPDATE)</div><div class="note">Verified live: signup trigger creates the rosa_users row (tested).</div></td>
+      <td><div class="ttl">No rosa_users row is ever created at signup (no confirmed trigger, and app UPDATEs instead of upserting)</div><div class="loc">auth</div></td>
       <td><span class="st" style="color:#0E9F6E;border-color:#0E9F6E">Fixed &amp; verified</span></td>
-    </tr>
-<tr>
+    </tr><tr>
       <td class="mono">NU-01</td>
       <td><span class="sev" style="background:#c0392b">C</span></td>
-      <td><div class="ttl">Computed programme and macro targets are never persisted — every user is coached against a hardcoded 1800 kcal</div><div class="loc">nutrition · computeMatrix return line 478 (tdee computed then dropped); onboarding</div></td>
+      <td><div class="ttl">Computed programme and macro targets are never persisted — every user is coached against a hardcoded 1800 kcal</div><div class="loc">nutrition</div></td>
       <td><span class="st" style="color:#0E9F6E;border-color:#0E9F6E">Fixed &amp; verified</span></td>
-    </tr>
-<tr>
+    </tr><tr>
       <td class="mono">NU-02</td>
       <td><span class="sev" style="background:#c0392b">C</span></td>
-      <td><div class="ttl">Fat-loss calorie deficit can be applied to pregnant and breastfeeding users with no safety guardrail or lactation add-on</div><div class="loc">nutrition · computeMatrix macro calc, lines 463-470</div></td>
+      <td><div class="ttl">Fat-loss calorie deficit can be applied to pregnant and breastfeeding users with no safety guardrail or lactation add-on</div><div class="loc">nutrition</div></td>
       <td><span class="st" style="color:#0E9F6E;border-color:#0E9F6E">Fixed &amp; verified</span></td>
-    </tr>
-<tr>
+    </tr><tr>
       <td class="mono">NU-03</td>
       <td><span class="sev" style="background:#c0392b">C</span></td>
-      <td><div class="ttl">No minimum-calorie floor — targets can drop below the safe ~1200 kcal threshold</div><div class="loc">nutrition · computeMatrix, lines 466-470</div></td>
+      <td><div class="ttl">No minimum-calorie floor — targets can drop below the safe ~1200 kcal threshold</div><div class="loc">nutrition</div></td>
       <td><span class="st" style="color:#0E9F6E;border-color:#0E9F6E">Fixed &amp; verified</span></td>
-    </tr>
-<tr>
+    </tr><tr>
       <td class="mono">SAF-01</td>
       <td><span class="sev" style="background:#c0392b">C</span></td>
-      <td><div class="ttl">Every programme launches the same hardcoded loaded lower-body session — no journey-specific content, and pregnant/postnatal users get 15-20kg lifts</div><div class="loc">safety · WorkoutPlayerScreen uses module-level TODAY_SESSION/EXERCISES lines 21</div></td>
-      <td><span class="st" style="color:#6B7280;border-color:#6B7280">Roadmap</span></td>
-    </tr>
-<tr>
+      <td><div class="ttl">Every programme launches the same hardcoded loaded lower-body session — no journey-specific content, and pregnant/postnatal users get 15-20kg lifts</div><div class="loc">safety</div></td>
+      <td><span class="st" style="color:#0E9F6E;border-color:#0E9F6E">Fixed &amp; verified</span></td>
+    </tr><tr>
       <td class="mono">SAF-02</td>
       <td><span class="sev" style="background:#c0392b">C</span></td>
-      <td><div class="ttl">Pregnancy and early-postnatal users are served heavy loaded lifting with no clearance gate or adaptation</div><div class="loc">safety · Onboarding life stages lines 1515-1521; computeMatrix pregnant/new_bab</div><div class="note">Nutrition side is now life-stage safe; a pre-workout medical-clearance gate for pregnancy/early-postnatal is the remaining safety build.</div></td>
+      <td><div class="ttl">Pregnancy and early-postnatal users are served heavy loaded lifting with no clearance gate or adaptation</div><div class="loc">safety</div></td>
       <td><span class="st" style="color:#6B7280;border-color:#6B7280">Roadmap</span></td>
-    </tr>
-<tr>
+    </tr><tr>
       <td class="mono">SEC-01</td>
       <td><span class="sev" style="background:#c0392b">C</span></td>
-      <td><div class="ttl">SECURITY DEFINER view rosa_daily_nutrition leaks every user&#x27;s nutrition data to anonymous callers (full RLS bypass)</div><div class="loc">security · DB: public.rosa_daily_nutrition (view) over rosa_nutrition_logs; publi</div></td>
+      <td><div class="ttl">SECURITY DEFINER view rosa_daily_nutrition leaks every user&#x27;s nutrition data to anonymous callers (full RLS bypass)</div><div class="loc">security</div></td>
       <td><span class="st" style="color:#0E9F6E;border-color:#0E9F6E">Fixed &amp; verified</span></td>
-    </tr>
-<tr>
+    </tr><tr>
       <td class="mono">BE-04</td>
       <td><span class="sev" style="background:#E04486">H</span></td>
-      <td><div class="ttl">Workout completion never persists to rosa_sessions — streaks and progress stats are permanently fabricated</div><div class="loc">workout · WorkoutPlayerScreen done state lines 2204-2226 (setDone 2185/2233/2305</div></td>
+      <td><div class="ttl">Workout completion never persists to rosa_sessions — streaks and progress stats are permanently fabricated</div><div class="loc">workout</div></td>
       <td><span class="st" style="color:#0E9F6E;border-color:#0E9F6E">Fixed &amp; verified</span></td>
-    </tr>
-<tr>
+    </tr><tr>
       <td class="mono">BE-05</td>
       <td><span class="sev" style="background:#E04486">H</span></td>
-      <td><div class="ttl">Badges are never awarded or persisted to rosa_badges</div><div class="loc">progress · USER.earnedBadges line 178; BADGES line 222; rendered 626/1928-1934/29</div></td>
-      <td><span class="st" style="color:#6B7280;border-color:#6B7280">Roadmap</span></td>
-    </tr>
-<tr>
+      <td><div class="ttl">Badges are never awarded or persisted to rosa_badges</div><div class="loc">progress</div></td>
+      <td><span class="st" style="color:#0E9F6E;border-color:#0E9F6E">Fixed &amp; verified</span></td>
+    </tr><tr>
       <td class="mono">BE-06</td>
       <td><span class="sev" style="background:#E04486">H</span></td>
-      <td><div class="ttl">Quick-track Water/Mood/Weight buttons log nothing and dead-end; rosa_body_stats is never written</div><div class="loc">home · HomeScreen Quick track lines 1891-1910 (+ Edit link 1894); ProgressScr</div><div class="note">DB ready (rosa_daily_logs table + RLS added); Water/Mood UI wiring is the remaining step.</div></td>
+      <td><div class="ttl">Quick-track Water/Mood/Weight buttons log nothing and dead-end; rosa_body_stats is never written</div><div class="loc">home</div></td>
       <td><span class="st" style="color:#B7791F;border-color:#B7791F">Mitigated</span></td>
-    </tr>
-<tr>
+    </tr><tr>
       <td class="mono">DS-01</td>
       <td><span class="sev" style="background:#E04486">H</span></td>
-      <td><div class="ttl">Text inputs use &lt;16px font — iOS Safari auto-zooms on focus and does not zoom back</div><div class="loc">design · AuthInput 14px line 1219; AI textarea 13px 2677; Kitchen search 13px 2</div></td>
+      <td><div class="ttl">Text inputs use &lt;16px font — iOS Safari auto-zooms on focus and does not zoom back</div><div class="loc">design</div></td>
       <td><span class="st" style="color:#0E9F6E;border-color:#0E9F6E">Fixed &amp; verified</span></td>
-    </tr>
-<tr>
+    </tr><tr>
       <td class="mono">FE-01</td>
       <td><span class="sev" style="background:#E04486">H</span></td>
-      <td><div class="ttl">All five Profile &gt; Account rows are dead links, and there is no way to change goal/programme after onboarding</div><div class="loc">profile · ProfileScreen settings list lines 3071-3085; unused settingsOpen state</div><div class="note">Sign out implemented; Edit-profile / notifications / units screens are the remaining rows.</div></td>
+      <td><div class="ttl">All five Profile &gt; Account rows are dead links, and there is no way to change goal/programme after onboarding</div><div class="loc">profile</div></td>
       <td><span class="st" style="color:#B7791F;border-color:#B7791F">Mitigated</span></td>
-    </tr>
-<tr>
+    </tr><tr>
       <td class="mono">FE-02</td>
       <td><span class="sev" style="background:#E04486">H</span></td>
-      <td><div class="ttl">No sign-out / logout anywhere in the app</div><div class="loc">profile · ProfileScreen Account section lines 2994-3099; supabase.auth.signOut n</div></td>
+      <td><div class="ttl">No sign-out / logout anywhere in the app</div><div class="loc">profile</div></td>
       <td><span class="st" style="color:#0E9F6E;border-color:#0E9F6E">Fixed &amp; verified</span></td>
-    </tr>
-<tr>
+    </tr><tr>
       <td class="mono">FE-03</td>
       <td><span class="sev" style="background:#E04486">H</span></td>
-      <td><div class="ttl">Every screen greets and populates with the hardcoded mock user &#x27;Sarah&#x27; — no real user data is ever loaded</div><div class="loc">home · USER mock lines 169-180; Home greeting 1840; ProfileScreen 2995/3008; </div></td>
+      <td><div class="ttl">Every screen greets and populates with the hardcoded mock user &#x27;Sarah&#x27; — no real user data is ever loaded</div><div class="loc">home</div></td>
       <td><span class="st" style="color:#0E9F6E;border-color:#0E9F6E">Fixed &amp; verified</span></td>
-    </tr>
-<tr>
+    </tr><tr>
       <td class="mono">FE-04</td>
       <td><span class="sev" style="background:#E04486">H</span></td>
-      <td><div class="ttl">Splash &#x27;Sign Up&#x27; CTA lands on the Login form, not signup</div><div class="loc">auth · SplashScreen &#x27;Sign Up&#x27;→navigate(&#x27;terms&#x27;) line 1369</div></td>
+      <td><div class="ttl">Splash &#x27;Sign Up&#x27; CTA lands on the Login form, not signup</div><div class="loc">auth</div></td>
       <td><span class="st" style="color:#0E9F6E;border-color:#0E9F6E">Fixed &amp; verified</span></td>
-    </tr>
-<tr>
+    </tr><tr>
       <td class="mono">FE-05</td>
       <td><span class="sev" style="background:#E04486">H</span></td>
-      <td><div class="ttl">Email-verify &#x27;continue&#x27; (and auto-confirm signup) routes to home, skipping onboarding, with no session recheck</div><div class="loc">auth · AuthScreen verify state line 1074 (&#x27;I&#x27;ve verified — continue</div></td>
+      <td><div class="ttl">Email-verify &#x27;continue&#x27; (and auto-confirm signup) routes to home, skipping onboarding, with no session recheck</div><div class="loc">auth</div></td>
       <td><span class="st" style="color:#0E9F6E;border-color:#0E9F6E">Fixed &amp; verified</span></td>
-    </tr>
-<tr>
+    </tr><tr>
       <td class="mono">FE-06</td>
       <td><span class="sev" style="background:#E04486">H</span></td>
-      <td><div class="ttl">Forgot-password flow dead-ends — no set-new-password screen, and recovery links act as passwordless logins</div><div class="loc">auth · resetPasswordForEmail line 1038; detectSessionInUrl:true line 135; App</div></td>
+      <td><div class="ttl">Forgot-password flow dead-ends — no set-new-password screen, and recovery links act as passwordless logins</div><div class="loc">auth</div></td>
       <td><span class="st" style="color:#6B7280;border-color:#6B7280">Roadmap</span></td>
-    </tr>
-<tr>
+    </tr><tr>
       <td class="mono">FE-07</td>
       <td><span class="sev" style="background:#E04486">H</span></td>
-      <td><div class="ttl">Imperial units toggle corrupts height/weight — uncontrolled inputs, no conversion, wrong-unit macro calc</div><div class="loc">onboarding · Step3 unit toggle line 1567, inputs 1576-1581 (defaultValue), conversi</div><div class="note">computeMatrix now converts imperial correctly; the Step-3 input controlled-state polish remains.</div></td>
+      <td><div class="ttl">Imperial units toggle corrupts height/weight — uncontrolled inputs, no conversion, wrong-unit macro calc</div><div class="loc">onboarding</div></td>
       <td><span class="st" style="color:#B7791F;border-color:#B7791F">Mitigated</span></td>
-    </tr>
-<tr>
+    </tr><tr>
       <td class="mono">NU-04</td>
       <td><span class="sev" style="background:#E04486">H</span></td>
-      <td><div class="ttl">SEZE Kitchen &#x27;Log this meal&#x27; never persists to rosa_nutrition_logs and ignores the selected portions</div><div class="loc">nutrition · NutritionScreen onLog lines 2562-2570; kitchenLogged state 2481; MealD</div></td>
+      <td><div class="ttl">SEZE Kitchen &#x27;Log this meal&#x27; never persists to rosa_nutrition_logs and ignores the selected portions</div><div class="loc">nutrition</div></td>
       <td><span class="st" style="color:#0E9F6E;border-color:#0E9F6E">Fixed &amp; verified</span></td>
-    </tr>
-<tr>
+    </tr><tr>
       <td class="mono">NU-05</td>
       <td><span class="sev" style="background:#E04486">H</span></td>
-      <td><div class="ttl">Fibre, sugar and sodium are absent from the food DB and never logged despite existing DB columns</div><div class="loc">nutrition · FOOD_DB line 257; parseFood line 416; confirmLog insert 2522-2533</div></td>
+      <td><div class="ttl">Fibre, sugar and sodium are absent from the food DB and never logged despite existing DB columns</div><div class="loc">nutrition</div></td>
       <td><span class="st" style="color:#6B7280;border-color:#6B7280">Roadmap</span></td>
-    </tr>
-<tr>
+    </tr><tr>
       <td class="mono">NU-06</td>
       <td><span class="sev" style="background:#E04486">H</span></td>
-      <td><div class="ttl">Chips/fries mapped to boiled-potato values — ~400 kcal per-item undercount</div><div class="loc">nutrition · FOOD_DB line 304</div></td>
+      <td><div class="ttl">Chips/fries mapped to boiled-potato values — ~400 kcal per-item undercount</div><div class="loc">nutrition</div></td>
       <td><span class="st" style="color:#0E9F6E;border-color:#0E9F6E">Fixed &amp; verified</span></td>
-    </tr>
-<tr>
+    </tr><tr>
       <td class="mono">NU-07</td>
       <td><span class="sev" style="background:#E04486">H</span></td>
-      <td><div class="ttl">BMR hardcodes age 25 and onboarding never collects DOB — targets overstated for the 35+/postnatal core demographic</div><div class="loc">nutrition · computeMatrix BMR line 466 (&#x27;-5 * 25&#x27;); onboarding never col</div><div class="note">Age defaulted to 30 (safe for demographic); DOB capture is a small onboarding add.</div></td>
+      <td><div class="ttl">BMR hardcodes age 25 and onboarding never collects DOB — targets overstated for the 35+/postnatal core demographic</div><div class="loc">nutrition</div></td>
       <td><span class="st" style="color:#B7791F;border-color:#B7791F">Mitigated</span></td>
-    </tr>
-<tr>
+    </tr><tr>
       <td class="mono">PR-01</td>
       <td><span class="sev" style="background:#E04486">H</span></td>
-      <td><div class="ttl">&#x27;Cycle-aware&#x27; is promised in copy but no cycle/menstrual tracking exists anywhere</div><div class="loc">product · computeMatrix Weight Reset reason line 447 (&#x27;is cycle-aware&#x27;</div></td>
+      <td><div class="ttl">&#x27;Cycle-aware&#x27; is promised in copy but no cycle/menstrual tracking exists anywhere</div><div class="loc">product</div></td>
       <td><span class="st" style="color:#6B7280;border-color:#6B7280">Roadmap</span></td>
-    </tr>
-<tr>
+    </tr><tr>
       <td class="mono">PR-02</td>
       <td><span class="sev" style="background:#E04486">H</span></td>
-      <td><div class="ttl">No progress-photos feature — the most expected tool for a body-composition/postnatal journey is absent</div><div class="loc">product · ProgressScreen 2887-2991; ProfileScreen 2994-3099; camera is food-only</div></td>
+      <td><div class="ttl">No progress-photos feature — the most expected tool for a body-composition/postnatal journey is absent</div><div class="loc">product</div></td>
       <td><span class="st" style="color:#6B7280;border-color:#6B7280">Roadmap</span></td>
-    </tr>
-<tr>
+    </tr><tr>
       <td class="mono">PR-03</td>
       <td><span class="sev" style="background:#E04486">H</span></td>
-      <td><div class="ttl">No actual pelvic-floor guidance despite it being a core brand pillar</div><div class="loc">product · Core &amp; Pelvic Floor programme line 186 (active:false, no content);</div></td>
+      <td><div class="ttl">No actual pelvic-floor guidance despite it being a core brand pillar</div><div class="loc">product</div></td>
       <td><span class="st" style="color:#6B7280;border-color:#6B7280">Roadmap</span></td>
-    </tr>
-<tr>
+    </tr><tr>
       <td class="mono">PR-04</td>
       <td><span class="sev" style="background:#E04486">H</span></td>
-      <td><div class="ttl">Workout exercises have no visual demonstration or form guidance</div><div class="loc">workout · WorkoutPlayerScreen 2256-2306; EXERCISES tips only 194-203</div></td>
+      <td><div class="ttl">Workout exercises have no visual demonstration or form guidance</div><div class="loc">workout</div></td>
       <td><span class="st" style="color:#6B7280;border-color:#6B7280">Roadmap</span></td>
-    </tr>
-<tr>
+    </tr><tr>
       <td class="mono">PR-05</td>
       <td><span class="sev" style="background:#E04486">H</span></td>
-      <td><div class="ttl">No programme progression — one static week/day, and completing a workout advances nothing</div><div class="loc">product · TODAY_SESSION static line 192; ProgrammeDetail week grid hardcoded to </div><div class="note">programme_id now persisted per user; week/day progression logic is the remaining build.</div></td>
-      <td><span class="st" style="color:#B7791F;border-color:#B7791F">Mitigated</span></td>
-    </tr>
-<tr>
+      <td><div class="ttl">No programme progression — one static week/day, and completing a workout advances nothing</div><div class="loc">product</div></td>
+      <td><span class="st" style="color:#0E9F6E;border-color:#0E9F6E">Fixed &amp; verified</span></td>
+    </tr><tr>
       <td class="mono">SEC-02</td>
       <td><span class="sev" style="background:#E04486">H</span></td>
-      <td><div class="ttl">analyze-image is called with no Authorization header — feature 401s to a fabricated 400 kcal placeholder, or the endpoint is open/unauthenticated</div><div class="loc">nutrition · FoodCameraButton fetch 2354-2358 &amp; catch 2360-2368; MenuScannerTab</div><div class="note">Intentionally deferred — AI/LLM is off in the testing phase per your decision; local parser is used.</div></td>
+      <td><div class="ttl">analyze-image is called with no Authorization header — feature 401s to a fabricated 400 kcal placeholder, or the endpoint is open/unauthenticated</div><div class="loc">nutrition</div></td>
       <td><span class="st" style="color:#7C6FD0;border-color:#7C6FD0">Deferred (by decision)</span></td>
-    </tr>
-<tr>
+    </tr><tr>
       <td class="mono">BE-07</td>
       <td><span class="sev" style="background:#B7791F">M</span></td>
-      <td><div class="ttl">RLS policies on all rosa_* tables must be confirmed (no policy = all authenticated access denied)</div><div class="loc">security · rosa_users, rosa_sessions, rosa_nutrition_logs, rosa_body_stats, rosa_</div></td>
+      <td><div class="ttl">RLS policies on all rosa_* tables must be confirmed (no policy = all authenticated access denied)</div><div class="loc">security</div></td>
       <td><span class="st" style="color:#0E9F6E;border-color:#0E9F6E">Fixed &amp; verified</span></td>
-    </tr>
-<tr>
+    </tr><tr>
       <td class="mono">BE-08</td>
       <td><span class="sev" style="background:#B7791F">M</span></td>
-      <td><div class="ttl">Nutrition AI-log insert is fire-and-forget with no error handling and drops several columns</div><div class="loc">nutrition · NutritionScreen.confirmLog lines 2509-2537 (insert 2522-2533)</div></td>
+      <td><div class="ttl">Nutrition AI-log insert is fire-and-forget with no error handling and drops several columns</div><div class="loc">nutrition</div></td>
       <td><span class="st" style="color:#0E9F6E;border-color:#0E9F6E">Fixed &amp; verified</span></td>
-    </tr>
-<tr>
+    </tr><tr>
       <td class="mono">BE-09</td>
       <td><span class="sev" style="background:#B7791F">M</span></td>
-      <td><div class="ttl">App is fully CDN-dependent with in-browser Babel and no offline support despite a PWA manifest</div><div class="loc">backend · head scripts lines 18-21; manifest line 15</div></td>
+      <td><div class="ttl">App is fully CDN-dependent with in-browser Babel and no offline support despite a PWA manifest</div><div class="loc">backend</div></td>
       <td><span class="st" style="color:#6B7280;border-color:#6B7280">Roadmap</span></td>
-    </tr>
-<tr>
+    </tr><tr>
       <td class="mono">DS-02</td>
       <td><span class="sev" style="background:#B7791F">M</span></td>
-      <td><div class="ttl">Off-palette accent colours break the brand system on the primary landing screen</div><div class="loc">design · Home streak pill orange #D97A2B on #FFF0E1 lines 1841-1843; Quick-trac</div></td>
+      <td><div class="ttl">Off-palette accent colours break the brand system on the primary landing screen</div><div class="loc">design</div></td>
       <td><span class="st" style="color:#6B7280;border-color:#6B7280">Roadmap</span></td>
-    </tr>
-<tr>
+    </tr><tr>
       <td class="mono">DS-03</td>
       <td><span class="sev" style="background:#B7791F">M</span></td>
-      <td><div class="ttl">Low-contrast pink secondary text fails WCAG AA</div><div class="loc">design · SectionHeader rgba(224,68,134,0.65) line 674; subtitles/meta 0.6-0.7 (</div></td>
+      <td><div class="ttl">Low-contrast pink secondary text fails WCAG AA</div><div class="loc">design</div></td>
       <td><span class="st" style="color:#6B7280;border-color:#6B7280">Roadmap</span></td>
-    </tr>
-<tr>
+    </tr><tr>
       <td class="mono">DS-04</td>
       <td><span class="sev" style="background:#B7791F">M</span></td>
-      <td><div class="ttl">Interactive cards are non-focusable divs — keyboard and screen readers cannot reach primary navigation</div><div class="loc">design · onClick divs: Home workout 1853, nutrition 1875, quick-track 1903; Pro</div></td>
+      <td><div class="ttl">Interactive cards are non-focusable divs — keyboard and screen readers cannot reach primary navigation</div><div class="loc">design</div></td>
       <td><span class="st" style="color:#6B7280;border-color:#6B7280">Roadmap</span></td>
-    </tr>
-<tr>
+    </tr><tr>
       <td class="mono">DS-05</td>
       <td><span class="sev" style="background:#B7791F">M</span></td>
-      <td><div class="ttl">Tap targets below the 44px minimum on high-frequency controls</div><div class="loc">design · Parsed-item qty +/- 24px 2719-2721; logged-item remove 28px 2760; Meal</div></td>
+      <td><div class="ttl">Tap targets below the 44px minimum on high-frequency controls</div><div class="loc">design</div></td>
       <td><span class="st" style="color:#6B7280;border-color:#6B7280">Roadmap</span></td>
-    </tr>
-<tr>
+    </tr><tr>
       <td class="mono">DS-06</td>
       <td><span class="sev" style="background:#B7791F">M</span></td>
-      <td><div class="ttl">Floating Feedback (and Dev) button clutters splash/auth and overlays the dark workout player</div><div class="loc">product · FeedbackButton rendered every screen in App line 3349; fixed bottom:14</div></td>
+      <td><div class="ttl">Floating Feedback (and Dev) button clutters splash/auth and overlays the dark workout player</div><div class="loc">product</div></td>
       <td><span class="st" style="color:#0E9F6E;border-color:#0E9F6E">Fixed &amp; verified</span></td>
-    </tr>
-<tr>
+    </tr><tr>
       <td class="mono">FE-08</td>
       <td><span class="sev" style="background:#B7791F">M</span></td>
-      <td><div class="ttl">Programme detail misrepresents every non-active programme (active user&#x27;s week, hardcoded phases, 12-week grid for the 0-week pregnant programme)</div><div class="loc">programmes · ProgrammeDetail week grid uses USER.programmeWeek 2117-2129; phases ha</div></td>
-      <td><span class="st" style="color:#6B7280;border-color:#6B7280">Roadmap</span></td>
-    </tr>
-<tr>
+      <td><div class="ttl">Programme detail misrepresents every non-active programme (active user&#x27;s week, hardcoded phases, 12-week grid for the 0-week pregnant programme)</div><div class="loc">programmes</div></td>
+      <td><span class="st" style="color:#0E9F6E;border-color:#0E9F6E">Fixed &amp; verified</span></td>
+    </tr><tr>
       <td class="mono">FE-09</td>
       <td><span class="sev" style="background:#B7791F">M</span></td>
-      <td><div class="ttl">Apple &amp; Meta sign-in buttons look active but fail with a raw error</div><div class="loc">auth · AuthScreen OAuth buttons lines 1119-1121; handleOAuth 1048-1062</div></td>
+      <td><div class="ttl">Apple &amp; Meta sign-in buttons look active but fail with a raw error</div><div class="loc">auth</div></td>
       <td><span class="st" style="color:#0E9F6E;border-color:#0E9F6E">Fixed &amp; verified</span></td>
-    </tr>
-<tr>
+    </tr><tr>
       <td class="mono">FE-10</td>
       <td><span class="sev" style="background:#B7791F">M</span></td>
-      <td><div class="ttl">Auth submit and OAuth buttons stay tappable during async — double-tap fires duplicate auth calls</div><div class="loc">auth · AuthScreen email submit PillButton line 1160; handleEmail 1010; OAuthB</div></td>
+      <td><div class="ttl">Auth submit and OAuth buttons stay tappable during async — double-tap fires duplicate auth calls</div><div class="loc">auth</div></td>
       <td><span class="st" style="color:#6B7280;border-color:#6B7280">Roadmap</span></td>
-    </tr>
-<tr>
+    </tr><tr>
       <td class="mono">FE-11</td>
       <td><span class="sev" style="background:#B7791F">M</span></td>
-      <td><div class="ttl">Onboarding goal labels/IDs don&#x27;t map to the matrix branches — recommendation contradicts the user&#x27;s choice</div><div class="loc">onboarding · Step4 GOALS lines 1605-1613 (id &#x27;booty&#x27; labelled &#x27;Body </div><div class="note">Onboarding goals now map to the matrix + persisted goal enum.</div></td>
+      <td><div class="ttl">Onboarding goal labels/IDs don&#x27;t map to the matrix branches — recommendation contradicts the user&#x27;s choice</div><div class="loc">onboarding</div></td>
       <td><span class="st" style="color:#B7791F;border-color:#B7791F">Mitigated</span></td>
-    </tr>
-<tr>
+    </tr><tr>
       <td class="mono">FE-12</td>
       <td><span class="sev" style="background:#B7791F">M</span></td>
-      <td><div class="ttl">Dev test panel and auto-tour ship to production users</div><div class="loc">product · DevTestButton lines 3199-3243; rendered unconditionally in App line 33</div></td>
+      <td><div class="ttl">Dev test panel and auto-tour ship to production users</div><div class="loc">product</div></td>
       <td><span class="st" style="color:#0E9F6E;border-color:#0E9F6E">Fixed &amp; verified</span></td>
-    </tr>
-<tr>
+    </tr><tr>
       <td class="mono">FE-13</td>
       <td><span class="sev" style="background:#B7791F">M</span></td>
-      <td><div class="ttl">Home calorie total (1240) contradicts the Nutrition screen total (1040)</div><div class="loc">nutrition · USER.macros.kcal line 179; MEALS_TODAY 205-209; Nutrition totals line </div></td>
+      <td><div class="ttl">Home calorie total (1240) contradicts the Nutrition screen total (1040)</div><div class="loc">nutrition</div></td>
       <td><span class="st" style="color:#0E9F6E;border-color:#0E9F6E">Fixed &amp; verified</span></td>
-    </tr>
-<tr>
+    </tr><tr>
       <td class="mono">FE-14</td>
       <td><span class="sev" style="background:#B7791F">M</span></td>
-      <td><div class="ttl">Nutrition screen is pre-seeded with 3 meals the user never logged</div><div class="loc">nutrition · loggedItems init lines 2487-2489 (MEALS_TODAY)</div></td>
+      <td><div class="ttl">Nutrition screen is pre-seeded with 3 meals the user never logged</div><div class="loc">nutrition</div></td>
       <td><span class="st" style="color:#0E9F6E;border-color:#0E9F6E">Fixed &amp; verified</span></td>
-    </tr>
-<tr>
+    </tr><tr>
       <td class="mono">FE-15</td>
       <td><span class="sev" style="background:#B7791F">M</span></td>
-      <td><div class="ttl">Onboarding runs with no auth guard; unauthenticated completion silently drops all data</div><div class="loc">onboarding · OnboardingScreen next() line 1416</div><div class="note">Onboarding save no-ops safely without a session; a hard auth guard is a small add.</div></td>
+      <td><div class="ttl">Onboarding runs with no auth guard; unauthenticated completion silently drops all data</div><div class="loc">onboarding</div></td>
       <td><span class="st" style="color:#B7791F;border-color:#B7791F">Mitigated</span></td>
-    </tr>
-<tr>
+    </tr><tr>
       <td class="mono">NU-08</td>
       <td><span class="sev" style="background:#B7791F">M</span></td>
-      <td><div class="ttl">Carbs are a blind remainder and can go negative; no macro clamping</div><div class="loc">nutrition · computeMatrix lines 471-473</div></td>
+      <td><div class="ttl">Carbs are a blind remainder and can go negative; no macro clamping</div><div class="loc">nutrition</div></td>
       <td><span class="st" style="color:#0E9F6E;border-color:#0E9F6E">Fixed &amp; verified</span></td>
-    </tr>
-<tr>
+    </tr><tr>
       <td class="mono">NU-09</td>
       <td><span class="sev" style="background:#B7791F">M</span></td>
-      <td><div class="ttl">Generic fallback estimate (150 kcal, 8/15/6) is arbitrary and applied per unit quantity on a small UK-centric DB</div><div class="loc">nutrition · parseFood fallback line 418; NutritionScreen submitAI line 2501</div></td>
-      <td><span class="st" style="color:#6B7280;border-color:#6B7280">Roadmap</span></td>
-    </tr>
-<tr>
+      <td><div class="ttl">Generic fallback estimate (150 kcal, 8/15/6) is arbitrary and applied per unit quantity on a small UK-centric DB</div><div class="loc">nutrition</div></td>
+      <td><span class="st" style="color:#0E9F6E;border-color:#0E9F6E">Fixed &amp; verified</span></td>
+    </tr><tr>
       <td class="mono">NU-10</td>
       <td><span class="sev" style="background:#B7791F">M</span></td>
-      <td><div class="ttl">Match-reason copy makes an absolute pregnancy safety claim that contradicts the app&#x27;s own disclaimer</div><div class="loc">health-claim · computeMatrix reason string line 434; MedicalDisclaimer 1333-1335</div></td>
+      <td><div class="ttl">Match-reason copy makes an absolute pregnancy safety claim that contradicts the app&#x27;s own disclaimer</div><div class="loc">health-claim</div></td>
       <td><span class="st" style="color:#6B7280;border-color:#6B7280">Roadmap</span></td>
-    </tr>
-<tr>
+    </tr><tr>
       <td class="mono">PR-06</td>
       <td><span class="sev" style="background:#B7791F">M</span></td>
-      <td><div class="ttl">Somatotype body-type step is off-mission, non-evidence-based, and cannot persist</div><div class="loc">onboarding · Step3 BODY_TYPES lines 1551-1555, 1586-1599</div></td>
+      <td><div class="ttl">Somatotype body-type step is off-mission, non-evidence-based, and cannot persist</div><div class="loc">onboarding</div></td>
       <td><span class="st" style="color:#6B7280;border-color:#6B7280">Roadmap</span></td>
-    </tr>
-<tr>
+    </tr><tr>
       <td class="mono">PR-07</td>
       <td><span class="sev" style="background:#B7791F">M</span></td>
-      <td><div class="ttl">&#x27;AI&#x27; labelling overstates what the local rules engine and food parser actually do</div><div class="loc">nutrition · Onboarding &#x27;AI programme matching&#x27; 1504; Step7 &#x27;SEZE is</div></td>
+      <td><div class="ttl">&#x27;AI&#x27; labelling overstates what the local rules engine and food parser actually do</div><div class="loc">nutrition</div></td>
       <td><span class="st" style="color:#6B7280;border-color:#6B7280">Roadmap</span></td>
-    </tr>
-<tr>
+    </tr><tr>
       <td class="mono">SEC-03</td>
       <td><span class="sev" style="background:#B7791F">M</span></td>
-      <td><div class="ttl">rosa_feedback INSERT policy is WITH CHECK (true) — anyone can spoof feedback as any user, and the client swallows errors</div><div class="loc">security · DB policy insert_feedback on public.rosa_feedback; client insert index</div></td>
+      <td><div class="ttl">rosa_feedback INSERT policy is WITH CHECK (true) — anyone can spoof feedback as any user, and the client swallows errors</div><div class="loc">security</div></td>
       <td><span class="st" style="color:#0E9F6E;border-color:#0E9F6E">Fixed &amp; verified</span></td>
-    </tr>
-<tr>
+    </tr><tr>
       <td class="mono">SEC-04</td>
       <td><span class="sev" style="background:#B7791F">M</span></td>
-      <td><div class="ttl">SECURITY DEFINER functions have mutable search_path, and handle_new_user is anon-executable via RPC</div><div class="loc">security · DB: public.handle_new_user(), public.handle_updated_at()</div></td>
+      <td><div class="ttl">SECURITY DEFINER functions have mutable search_path, and handle_new_user is anon-executable via RPC</div><div class="loc">security</div></td>
       <td><span class="st" style="color:#0E9F6E;border-color:#0E9F6E">Fixed &amp; verified</span></td>
-    </tr>
-<tr>
+    </tr><tr>
       <td class="mono">SEC-05</td>
       <td><span class="sev" style="background:#B7791F">M</span></td>
-      <td><div class="ttl">GDPR consent and 18+ age gate are enforced only client-side and stored in user-editable metadata, never reaching rosa_users</div><div class="loc">product · TermsScreen 908-963; signUp options.data 1020-1023; consent checkboxes</div></td>
+      <td><div class="ttl">GDPR consent and 18+ age gate are enforced only client-side and stored in user-editable metadata, never reaching rosa_users</div><div class="loc">product</div></td>
       <td><span class="st" style="color:#6B7280;border-color:#6B7280">Roadmap</span></td>
-    </tr>
-<tr>
+    </tr><tr>
       <td class="mono">DS-07</td>
       <td><span class="sev" style="background:#6B7280">L</span></td>
-      <td><div class="ttl">Same user shown as photo on Home but initials on Profile</div><div class="loc">design · Home avatar backgroundImage model-1.jpg line 1846 vs Profile initials </div></td>
+      <td><div class="ttl">Same user shown as photo on Home but initials on Profile</div><div class="loc">design</div></td>
       <td><span class="st" style="color:#6B7280;border-color:#6B7280">Roadmap</span></td>
-    </tr>
-<tr>
+    </tr><tr>
       <td class="mono">DS-08</td>
       <td><span class="sev" style="background:#6B7280">L</span></td>
-      <td><div class="ttl">Workout &#x27;close&#x27; control uses a down-chevron glyph that reads as minimise</div><div class="loc">design · WorkoutPlayerScreen header button, icon path line 2240 (aria-label &#x</div></td>
-      <td><span class="st" style="color:#6B7280;border-color:#6B7280">Roadmap</span></td>
-    </tr>
-<tr>
+      <td><div class="ttl">Workout &#x27;close&#x27; control uses a down-chevron glyph that reads as minimise</div><div class="loc">design</div></td>
+      <td><span class="st" style="color:#0E9F6E;border-color:#0E9F6E">Fixed &amp; verified</span></td>
+    </tr><tr>
       <td class="mono">DS-09</td>
       <td><span class="sev" style="background:#6B7280">L</span></td>
-      <td><div class="ttl">Inconsistent H1 type scale and card radii across screens</div><div class="loc">design · Titles Home 34px 1840, Progress 32px 2896, Programmes/Nutrition 30px 1</div></td>
+      <td><div class="ttl">Inconsistent H1 type scale and card radii across screens</div><div class="loc">design</div></td>
       <td><span class="st" style="color:#6B7280;border-color:#6B7280">Roadmap</span></td>
-    </tr>
-<tr>
+    </tr><tr>
       <td class="mono">FE-16</td>
       <td><span class="sev" style="background:#6B7280">L</span></td>
-      <td><div class="ttl">Body-stat number inputs coerce empty/invalid entries to 0, feeding the macro calc</div><div class="loc">onboarding · Step3 input onChange line 1579</div></td>
+      <td><div class="ttl">Body-stat number inputs coerce empty/invalid entries to 0, feeding the macro calc</div><div class="loc">onboarding</div></td>
       <td><span class="st" style="color:#6B7280;border-color:#6B7280">Roadmap</span></td>
-    </tr>
-<tr>
+    </tr><tr>
       <td class="mono">FE-17</td>
       <td><span class="sev" style="background:#6B7280">L</span></td>
-      <td><div class="ttl">Decorative icons and legal links masquerade as buttons with no handlers</div><div class="loc">design · Programmes sort icon 1964-1966; ProgrammeCard bookmark 2030-2032; Nutr</div></td>
+      <td><div class="ttl">Decorative icons and legal links masquerade as buttons with no handlers</div><div class="loc">design</div></td>
       <td><span class="st" style="color:#6B7280;border-color:#6B7280">Roadmap</span></td>
-    </tr>
-<tr>
+    </tr><tr>
       <td class="mono">FE-18</td>
       <td><span class="sev" style="background:#6B7280">L</span></td>
-      <td><div class="ttl">onAuthStateChange handler captures a stale &#x27;screen&#x27; value</div><div class="loc">auth · App useEffect lines 3287-3296 (deps [] at 3304)</div></td>
+      <td><div class="ttl">onAuthStateChange handler captures a stale &#x27;screen&#x27; value</div><div class="loc">auth</div></td>
       <td><span class="st" style="color:#0E9F6E;border-color:#0E9F6E">Fixed &amp; verified</span></td>
-    </tr>
-<tr>
+    </tr><tr>
       <td class="mono">FE-19</td>
       <td><span class="sev" style="background:#6B7280">L</span></td>
-      <td><div class="ttl">Home &#x27;SEZE tip&#x27; re-randomises on every render; tipOpen state is dead</div><div class="loc">home · HomeScreen lines 1828-1829</div></td>
+      <td><div class="ttl">Home &#x27;SEZE tip&#x27; re-randomises on every render; tipOpen state is dead</div><div class="loc">home</div></td>
       <td><span class="st" style="color:#0E9F6E;border-color:#0E9F6E">Fixed &amp; verified</span></td>
-    </tr>
-<tr>
+    </tr><tr>
       <td class="mono">FE-20</td>
       <td><span class="sev" style="background:#6B7280">L</span></td>
-      <td><div class="ttl">Terms gate can become permanently unacceptable if the content doesn&#x27;t overflow</div><div class="loc">onboarding · TermsScreen handleScroll &amp; canAccept lines 914-919; scrollbar hidd</div></td>
+      <td><div class="ttl">Terms gate can become permanently unacceptable if the content doesn&#x27;t overflow</div><div class="loc">onboarding</div></td>
       <td><span class="st" style="color:#6B7280;border-color:#6B7280">Roadmap</span></td>
-    </tr>
-<tr>
+    </tr><tr>
       <td class="mono">FE-21</td>
       <td><span class="sev" style="background:#6B7280">L</span></td>
-      <td><div class="ttl">Email/password fields don&#x27;t submit on Enter</div><div class="loc">auth · AuthInput lines 1210-1226 (no form/onKeyDown)</div></td>
+      <td><div class="ttl">Email/password fields don&#x27;t submit on Enter</div><div class="loc">auth</div></td>
       <td><span class="st" style="color:#6B7280;border-color:#6B7280">Roadmap</span></td>
-    </tr>
-<tr>
+    </tr><tr>
       <td class="mono">FE-22</td>
       <td><span class="sev" style="background:#6B7280">L</span></td>
-      <td><div class="ttl">No hardware/browser back handling; workout close and detail back are hardcoded</div><div class="loc">product · App navigate line 3306; workout close 2239; detail back 2053</div></td>
-      <td><span class="st" style="color:#6B7280;border-color:#6B7280">Roadmap</span></td>
-    </tr>
-<tr>
+      <td><div class="ttl">No hardware/browser back handling; workout close and detail back are hardcoded</div><div class="loc">product</div></td>
+      <td><span class="st" style="color:#0E9F6E;border-color:#0E9F6E">Fixed &amp; verified</span></td>
+    </tr><tr>
       <td class="mono">FE-23</td>
       <td><span class="sev" style="background:#6B7280">L</span></td>
-      <td><div class="ttl">Workout weights can&#x27;t be edited — feature stubbed out</div><div class="loc">workout · WorkoutPlayerScreen weights state line 2154; display line 2275</div></td>
+      <td><div class="ttl">Workout weights can&#x27;t be edited — feature stubbed out</div><div class="loc">workout</div></td>
       <td><span class="st" style="color:#6B7280;border-color:#6B7280">Roadmap</span></td>
-    </tr>
-<tr>
+    </tr><tr>
       <td class="mono">NU-11</td>
       <td><span class="sev" style="background:#6B7280">L</span></td>
-      <td><div class="ttl">Duplicate protein-shake entry and several method-insensitive aliases in FOOD_DB</div><div class="loc">nutrition · FOOD_DB lines 272 &amp; 353; aliases 269/276/336</div></td>
+      <td><div class="ttl">Duplicate protein-shake entry and several method-insensitive aliases in FOOD_DB</div><div class="loc">nutrition</div></td>
       <td><span class="st" style="color:#6B7280;border-color:#6B7280">Roadmap</span></td>
-    </tr>
-<tr>
+    </tr><tr>
       <td class="mono">NU-12</td>
       <td><span class="sev" style="background:#6B7280">L</span></td>
-      <td><div class="ttl">Repeated per-quantity rounding compounds macro drift in the portion stepper</div><div class="loc">nutrition · updateParsedQty lines 2545-2551</div></td>
-      <td><span class="st" style="color:#6B7280;border-color:#6B7280">Roadmap</span></td>
-    </tr>
-<tr>
+      <td><div class="ttl">Repeated per-quantity rounding compounds macro drift in the portion stepper</div><div class="loc">nutrition</div></td>
+      <td><span class="st" style="color:#0E9F6E;border-color:#0E9F6E">Fixed &amp; verified</span></td>
+    </tr><tr>
       <td class="mono">PR-08</td>
       <td><span class="sev" style="background:#6B7280">L</span></td>
-      <td><div class="ttl">No community feature — an expected pillar for the postnatal/mum audience</div><div class="loc">product · App-wide; no community/social surface (brand voice &#x27;We are not ju</div></td>
+      <td><div class="ttl">No community feature — an expected pillar for the postnatal/mum audience</div><div class="loc">product</div></td>
       <td><span class="st" style="color:#6B7280;border-color:#6B7280">Roadmap</span></td>
-    </tr>
-<tr>
+    </tr><tr>
       <td class="mono">PR-09</td>
       <td><span class="sev" style="background:#6B7280">L</span></td>
-      <td><div class="ttl">No sleep or recovery tracking despite recovery being a stated brand value</div><div class="loc">product · ROSA_TIPS &#x27;Recovery is not weakness&#x27; line 249; no sleep/reco</div></td>
+      <td><div class="ttl">No sleep or recovery tracking despite recovery being a stated brand value</div><div class="loc">product</div></td>
       <td><span class="st" style="color:#6B7280;border-color:#6B7280">Roadmap</span></td>
-    </tr>
-<tr>
+    </tr><tr>
       <td class="mono">SEC-06</td>
       <td><span class="sev" style="background:#6B7280">L</span></td>
-      <td><div class="ttl">Weak password policy (6-char min, leaked-password protection off), false &#x27;Protected by reCAPTCHA&#x27; claim, and non-functional legal links</div><div class="loc">auth · index.html:1013 (min length 6), 1185 (reCAPTCHA claim), 1186 (Privacy/</div><div class="note">Enable leaked-password protection in Supabase Auth dashboard (1 click); reCAPTCHA copy to be wired to real CAPTCHA.</div></td>
+      <td><div class="ttl">Weak password policy (6-char min, leaked-password protection off), false &#x27;Protected by reCAPTCHA&#x27; claim, and non-functional legal links</div><div class="loc">auth</div></td>
       <td><span class="st" style="color:#B7791F;border-color:#B7791F">Mitigated</span></td>
-    </tr>
-</tbody></table></div>
+    </tr></tbody></table></div>
 
-<h2><span class="n">06 — Risk register</span>What to watch before public launch</h2>
-<div class="scroll"><table>
-<thead><tr><th>ID</th><th>Risk</th><th>Impact</th><th>Likelihood</th><th>Mitigation</th><th>Status</th></tr></thead>
-<tbody>
-<tr><td class="mono">R1</td><td>No real workout content — every programme launches the same demo session</td>
-      <td><span class="pill" style="color:#c0392b;border-color:#c0392b">High</span></td>
-      <td><span class="pill" style="color:#B7791F;border-color:#B7791F">Medium</span></td>
-      <td>Programme sessions are placeholder; build per-programme exercise libraries with form video before public launch. Gate pregnancy/postnatal behind clearance.</td><td>Open</td></tr>
-<tr><td class="mono">R2</td><td>Pre-workout medical clearance gate missing for pregnancy / early postnatal</td>
-      <td><span class="pill" style="color:#c0392b;border-color:#c0392b">High</span></td>
-      <td><span class="pill" style="color:#B7791F;border-color:#B7791F">Medium</span></td>
-      <td>Add a clearance confirmation + physician-advised flag before starting heavy loading for perinatal life stages.</td><td>Open</td></tr>
-<tr><td class="mono">R3</td><td>USDA nutrition lookups use rate-limited DEMO_KEY</td>
-      <td><span class="pill" style="color:#B7791F;border-color:#B7791F">Medium</span></td>
-      <td><span class="pill" style="color:#c0392b;border-color:#c0392b">High</span></td>
-      <td>Obtain a free USDA FoodData Central API key and set USDA_API_KEY secret on the nutrition-search function.</td><td>Open</td></tr>
-<tr><td class="mono">R4</td><td>Email deliverability / branded auth emails</td>
-      <td><span class="pill" style="color:#B7791F;border-color:#B7791F">Medium</span></td>
-      <td><span class="pill" style="color:#B7791F;border-color:#B7791F">Medium</span></td>
-      <td>Configure a custom SMTP + branded SEZE email templates in Supabase Auth (dashboard) before launch.</td><td>Open</td></tr>
-<tr><td class="mono">R5</td><td>Leaked-password protection disabled</td>
-      <td><span class="pill" style="color:#B7791F;border-color:#B7791F">Medium</span></td>
-      <td><span class="pill" style="color:#B7791F;border-color:#B7791F">Medium</span></td>
-      <td>Enable HaveIBeenPwned check + min length 8-10 in Supabase Auth settings (1 toggle).</td><td>Open</td></tr>
-<tr><td class="mono">R6</td><td>Consent/age captured client-side in editable metadata</td>
-      <td><span class="pill" style="color:#B7791F;border-color:#B7791F">Medium</span></td>
-      <td><span class="pill" style="color:#6B7280;border-color:#6B7280">Low</span></td>
-      <td>Persist immutable, timestamped consent server-side with policy version; add age assurance.</td><td>Open</td></tr>
-<tr><td class="mono">R7</td><td>CDN + in-browser Babel, no offline/PWA runtime</td>
-      <td><span class="pill" style="color:#B7791F;border-color:#B7791F">Medium</span></td>
-      <td><span class="pill" style="color:#6B7280;border-color:#6B7280">Low</span></td>
-      <td>Precompile to a bundled build and add a service worker before scale; fine for beta.</td><td>Open</td></tr>
-<tr><td class="mono">R8</td><td>Single-file 3.3k-line app is hard to maintain</td>
-      <td><span class="pill" style="color:#6B7280;border-color:#6B7280">Low</span></td>
-      <td><span class="pill" style="color:#c0392b;border-color:#c0392b">High</span></td>
-      <td>Plan a modular build (components/screens) when feature velocity increases.</td><td>Accepted (beta)</td></tr>
-</tbody></table></div>
+<h2><span class="n">04 — Risk register</span>Watch before public launch</h2>
+<div class="scroll"><table><thead><tr><th>ID</th><th>Risk</th><th>Impact</th><th>Likelihood</th><th>Mitigation</th><th>Status</th></tr></thead><tbody><tr><td class="mono">R1</td><td>No real workout content beyond the built rotation; programmes now have distinct sessions but not full multi-week curricula with form video</td><td><span class="pill" style="color:#B7791F;border-color:#B7791F">Medium</span></td><td><span class="pill" style="color:#B7791F;border-color:#B7791F">Medium</span></td><td>Build per-programme week-by-week content + demo video before public launch.</td><td><span class="pill" style="color:#0E9F6E;border-color:#0E9F6E">Partially mitigated</span></td></tr><tr><td class="mono">R2</td><td>No pre-workout medical-clearance gate for pregnancy / early postnatal</td><td><span class="pill" style="color:#c0392b;border-color:#c0392b">High</span></td><td><span class="pill" style="color:#B7791F;border-color:#B7791F">Medium</span></td><td>Add a clearance confirmation + physician-advised flag before heavy loading for perinatal stages.</td><td><span class="pill" style="color:#c0392b;border-color:#c0392b">Open</span></td></tr><tr><td class="mono">R3</td><td>USDA nutrition lookups use the rate-limited DEMO_KEY</td><td><span class="pill" style="color:#B7791F;border-color:#B7791F">Medium</span></td><td><span class="pill" style="color:#c0392b;border-color:#c0392b">High</span></td><td>Add a free USDA FoodData Central key as the USDA_API_KEY secret on the nutrition-search function.</td><td><span class="pill" style="color:#c0392b;border-color:#c0392b">Open</span></td></tr><tr><td class="mono">R4</td><td>No payment provider — &#x27;paying&#x27; plan is set manually</td><td><span class="pill" style="color:#B7791F;border-color:#B7791F">Medium</span></td><td><span class="pill" style="color:#c0392b;border-color:#c0392b">High</span></td><td>Wire Stripe; hook its webhook to admin_set_plan; add MRR/churn to the admin panel.</td><td><span class="pill" style="color:#c0392b;border-color:#c0392b">Open</span></td></tr><tr><td class="mono">R5</td><td>Leaked-password protection disabled; no CAPTCHA</td><td><span class="pill" style="color:#B7791F;border-color:#B7791F">Medium</span></td><td><span class="pill" style="color:#B7791F;border-color:#B7791F">Medium</span></td><td>Enable HaveIBeenPwned + min length 8-10 + Turnstile in Supabase Auth (dashboard toggles).</td><td><span class="pill" style="color:#c0392b;border-color:#c0392b">Open</span></td></tr><tr><td class="mono">R6</td><td>Consent/age captured client-side in editable metadata</td><td><span class="pill" style="color:#B7791F;border-color:#B7791F">Medium</span></td><td><span class="pill" style="color:#6B7280;border-color:#6B7280">Low</span></td><td>Persist immutable timestamped consent server-side with policy version; add age assurance.</td><td><span class="pill" style="color:#c0392b;border-color:#c0392b">Open</span></td></tr><tr><td class="mono">R7</td><td>Branded auth emails / deliverability not configured (e.g. @seze.app mailboxes)</td><td><span class="pill" style="color:#B7791F;border-color:#B7791F">Medium</span></td><td><span class="pill" style="color:#B7791F;border-color:#B7791F">Medium</span></td><td>Configure custom SMTP + branded SEZE templates in Supabase Auth.</td><td><span class="pill" style="color:#c0392b;border-color:#c0392b">Open</span></td></tr><tr><td class="mono">R8</td><td>CDN + in-browser Babel, single 3.7k-line file, no offline runtime</td><td><span class="pill" style="color:#6B7280;border-color:#6B7280">Low</span></td><td><span class="pill" style="color:#c0392b;border-color:#c0392b">High</span></td><td>Precompile to a bundled build + service worker as feature velocity grows.</td><td><span class="pill" style="color:#6B7280;border-color:#6B7280">Accepted (beta)</span></td></tr><tr><td class="mono">R9</td><td>Vercel build queue can stall (observed 12-23min queued vs usual 2-6s)</td><td><span class="pill" style="color:#6B7280;border-color:#6B7280">Low</span></td><td><span class="pill" style="color:#6B7280;border-color:#6B7280">Low</span></td><td>Use a prebuilt deploy to bypass the queue: vercel build --prod &amp;&amp; vercel deploy --prebuilt --prod.</td><td><span class="pill" style="color:#0E9F6E;border-color:#0E9F6E">Mitigated</span></td></tr></tbody></table></div>
 
-<h2><span class="n">07 — Recommended roadmap</span>Next, in priority order</h2>
-<div class="card">
-<ul class="rl">
-<li><b>Programme content engine</b> — real per-programme exercise libraries with form video, and week/day progression (replaces the single demo session). Highest-value gap.</li>
-<li><b>Perinatal safety gate</b> — medical-clearance confirmation before heavy loading for pregnancy / early-postnatal; physician-advised flag.</li>
-<li><b>Nutrition depth</b> — wire the search UI to the new function, log fibre/sugar/sodium, add barcode scan; obtain USDA key.</li>
-<li><b>Quick-track &amp; progress</b> — persist Water/Mood/Weight (table ready) and drive Progress charts + badge-earning from real sessions.</li>
-<li><b>Account controls</b> — edit profile, change goal/programme, notifications, set-new-password screen for recovery.</li>
-<li><b>Brand-value features</b> — progress photos, cycle awareness, pelvic-floor guidance, sleep/recovery, community — expected by the postnatal audience.</li>
-<li><b>Hardening for scale</b> — enable leaked-password protection + CAPTCHA, server-side consent records, branded SMTP emails, precompiled build + service worker.</li>
-</ul>
+<h2><span class="n">05 — Roadmap</span>Next, in priority order</h2>
+<div class="card"><div class="rd"><div class="rdmark next">NEXT</div><div class="rdt">Perinatal medical-clearance gate before heavy loading</div><span class="pill" style="color:#E04486;border-color:#E04486">High</span></div><div class="rd"><div class="rdmark ">•</div><div class="rdt">Per-programme multi-week content + exercise demo video</div><span class="pill" style="color:#E04486;border-color:#E04486">High</span></div><div class="rd"><div class="rdmark ">•</div><div class="rdt">Stripe payments → auto plan updates + revenue metrics</div><span class="pill" style="color:#E04486;border-color:#E04486">High</span></div><div class="rd"><div class="rdmark ">•</div><div class="rdt">USDA API key + wire barcode scan; log fibre/sugar/sodium</div><span class="pill" style="color:#B7791F;border-color:#B7791F">Medium</span></div><div class="rd"><div class="rdmark ">•</div><div class="rdt">Quick-track Water/Mood/Weight UI → rosa_daily_logs / rosa_body_stats (tables ready)</div><span class="pill" style="color:#B7791F;border-color:#B7791F">Medium</span></div><div class="rd"><div class="rdmark ">•</div><div class="rdt">Account settings: edit profile, change goal, notifications, set-new-password</div><span class="pill" style="color:#B7791F;border-color:#B7791F">Medium</span></div><div class="rd"><div class="rdmark ">•</div><div class="rdt">Brand-value features: progress photos, cycle awareness, pelvic-floor guidance, sleep/recovery, community</div><span class="pill" style="color:#B7791F;border-color:#B7791F">Medium</span></div><div class="rd"><div class="rdmark ">•</div><div class="rdt">Harden for scale: leaked-password protection, CAPTCHA, server-side consent, branded SMTP, precompiled build</div><span class="pill" style="color:#B7791F;border-color:#B7791F">Medium</span></div></div>
+
+<h2><span class="n">06 — Key decisions</span>Why it's built this way</h2>
+<div class="card"><div class="dec"><div class="dt">AI/LLM deferred for the testing phase</div><div class="dr">Keep the fast local food parser + real DB lookup now; wire an LLM later. No Railway needed — the analyze-image Edge Function already exists.</div></div><div class="dec"><div class="dt">Nutrition data = Open Food Facts + USDA + curated fast-food table</div><div class="dr">Free, no scraping fragility; curated table gives accurate UK/US chain items; OFF/USDA cover the long tail.</div></div><div class="dec"><div class="dt">Matcher prioritises life stage over goal, but users can switch</div><div class="dr">A postnatal body shouldn&#x27;t be dropped into heavy glute loading; but &#x27;Start this programme&#x27; now lets the user override and persists it.</div></div><div class="dec"><div class="dt">Profile table is rosa_users, not profiles</div><div class="dr">The app wrote to a non-existent &#x27;profiles&#x27; table — the real table (with the signup trigger + RLS) is rosa_users. All reads/writes realigned.</div></div><div class="dec"><div class="dt">Admin gated by a rosa_admins allowlist + SECURITY DEFINER RPCs</div><div class="dr">Data stays safe even if the UI leaks; add/remove admins with one SQL insert; check is case-insensitive.</div></div><div class="dec"><div class="dt">Anon Supabase key in the frontend is safe</div><div class="dr">It is the public anon key; every table&#x27;s RLS is auth.uid()-scoped and was verified correct.</div></div></div>
+
+<h2><span class="n">07 — Infrastructure</span>What's running</h2>
+<div class="card"><div class="kv"><b>Tables (public)</b><span>rosa_users (profile), rosa_sessions, rosa_nutrition_logs, rosa_body_stats, rosa_badges, rosa_feedback, rosa_daily_logs, rosa_food_items, rosa_admins</span></div><div class="kv"><b>RLS</b><span>Enabled on all; own-row auth.uid() scoping; admins read all via is_seze_admin()</span></div><div class="kv"><b>Edge functions</b><span>analyze-image (photo/menu; LLM deferred), nutrition-search (curated + Open Food Facts + USDA)</span></div><div class="kv"><b>Auth</b><span>Email/password + Google active; Apple/Meta &#x27;coming soon&#x27;; signup trigger creates the profile row</span></div><div class="kv"><b>Admin RPCs</b><span>admin_overview, admin_users, admin_requests, admin_set_plan — each re-checks is_seze_admin()</span></div><div class="kv"><b>Deploy</b><span>Vercel (rosa-app) → rosa-app-ten.vercel.app; git github.com/JosephMichaelDaniels/Rosa (main)</span></div></div>
+
+<div class="foot">
+ <b>How this doc stays current.</b> It is generated from <code>docs/dev-report.json</code> (the version-controlled source of truth) plus <code>docs/audit-register.json</code>. To update: edit the JSON, run <code>python3 docs/gen_report.py</code>, then republish the HTML to this same link. Live in-app metrics (members, revenue, feedback) are in the app's <b>Admin panel</b>. Generated 2026-07-19 from <code>main</code>.
 </div>
-
-<div class="foot">Generated for SEZE · 19 Jul 2026 · Backend cttyprfieqydaiifncbu (eu-west-2) · This report reflects the state of <code>main</code> at deploy time.</div>
 </div>
