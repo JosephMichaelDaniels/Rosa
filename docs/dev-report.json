@@ -10,59 +10,288 @@
     "stack": "Single-file React 18 (CDN + Babel) · Supabase (Postgres + Auth + Edge Functions) · Vercel"
   },
   "snapshotNote": "Live counts baked in at generation time. In-app live metrics live in the Admin panel.",
-  "snapshot": { "Users": 4, "Onboarded": 4, "Free": 4, "Trial": 0, "Paying": 0, "Sessions": 2, "Meals logged": 22, "Feedback": 5, "Food items (curated)": 55, "DB tables": 9, "Admins": 3 },
+  "snapshot": {
+    "Users": 4,
+    "Onboarded": 4,
+    "Free": 4,
+    "Trial": 0,
+    "Paying": 0,
+    "Sessions": 2,
+    "Meals logged": 22,
+    "Feedback": 5,
+    "DB tables": 9,
+    "Admins": 3,
+    "Food DB (local, curated)": 526,
+    "Fast-food items": 55
+  },
   "summary": "This report is the living engineering record for SEZE. It began as a brand + UI overhaul and grew into a full-stack functionality pass: fixing a systemic persistence failure (the app wrote to a non-existent 'profiles' table), closing security and clinical-safety holes, wiring real user data across every screen, adding a nutrition data layer, an admin panel, a reviewable feedback system, and a per-programme workout engine. Every backend flow below has been verified against the live database.",
   "buildLog": [
-    { "date": "2026-07-19", "commit": "b5fa24f", "title": "Nutrition logging: meal selector, add/omit foods, real-DB accuracy", "summary": "Choose which meal to log to (Breakfast/Lunch/Dinner/Snack); add foods via real search (curated + Open Food Facts + USDA) and remove foods before saving; unknown foods auto-upgrade from a flat estimate to a real lookup; removing a saved meal also deletes it from Supabase; bottom nav added to programme detail; workout exit changed to a clear ×.", "verified": "Logged 3 items all to Lunch; 'starbucks caramel' → curated Frappuccino 380kcal; meal_type persisted." },
-    { "date": "2026-07-19", "commit": "7603edf", "title": "In-app admin panel", "summary": "AdminScreen with Overview/Users/Feedback/Requests tabs; plan management (free/trial/paying); admin-only SECURITY DEFINER RPCs; feedback category selector powers 'most requested'; prominent Profile entry.", "verified": "Anon denied on every admin RPC; plan toggle persisted; overview shows real counts." },
-    { "date": "2026-07-19", "commit": "e598934", "title": "Fix: Progress/Programmes showed demo data to real accounts", "summary": "Progress totals, weekly chart, streak, programme progress now from real rosa_sessions (new account = zeros). Badges earned from real activity only and persisted to rosa_badges. Programmes split into 'Your programme' + 'Explore other'; ACTIVE follows the user's real choice. 'Start this programme' now persists the switch.", "verified": "New account shows 0 sessions / 0% / no badges; programme switch new_mum→booty persisted." },
-    { "date": "2026-07-19", "commit": "8db74c6", "title": "Admin access + case-insensitive check", "summary": "Added elvarosaflores@seze.app to the allowlist; is_seze_admin() now compares case-insensitively; admins get a 'Review feedback'/admin entry on Profile — no dev URL needed.", "verified": "Non-admin does not see the admin card; admin does." },
-    { "date": "2026-07-19", "commit": "2e1fafb", "title": "Dev mode + reviewable feedback", "summary": "Dev button restored (localhost always; production via sticky ?dev=1). Feedback works logged-out (anon user_id null; RLS blocks impersonation), with optional email and real success/error states. Feedback review screen with status triage. Workout-content engine (distinct sessions per programme).", "verified": "Anon feedback 201; impersonation 401; triage persisted." },
-    { "date": "2026-07-18", "commit": "7336642", "title": "Backend functionality: real user data, safe nutrition, auth flow", "summary": "AppData provider loads real rosa_users + today's nutrition + session streak. Home/Nutrition/Profile show real data. Onboarding upserts full profile with life-stage-safe macro targets. Auth: Sign Up→signup, verify→onboarding, sign out, Apple/Meta 'coming soon'. iOS 16px input fix; a11y.", "verified": "Signup→trigger→onboarding save (2450kcal safe)→real targets→meal logging all persist." },
-    { "date": "2026-07-18", "commit": "e0b49f5", "title": "Backend fixes + security hardening + nutrition data", "summary": "profiles→rosa_users (maybeSingle), onboarding macro targets, workout session logging. Security: fixed a SECURITY DEFINER view leaking all users' nutrition data, feedback-spoof policy, function search_path. Deployed nutrition-search edge fn + seeded 55 fast-food items.", "verified": "Supabase security advisor clear except the dashboard leaked-password toggle." },
-    { "date": "2026-07-18", "commit": "4d77089", "title": "SEZE rebrand", "summary": "Real brand infinity logo (extracted transparent white/pink PNGs), Poppins Bold wordmark, exact palette (#E04486 / #15B5A6), favicon + app icons + manifest, photo-rich rebuild of every screen using real model photography, unified vector-icon library (emojis removed), Train/Eat/[Home ∞]/Progress/Me nav.", "verified": "Logo, splash, auth, home, programmes verified in-browser; matches brand pack." }
+    {
+      "date": "2026-07-20",
+      "commit": "03b5c65",
+      "title": "Nutrition accuracy: fully-local curated food DB (no external API)",
+      "summary": "Replaced Open Food Facts / USDA lookups with a curated, macro-validated local database served as a static asset (foods.json, 526 items = 471 everyday foods + 55 UK fast-food chain items). Every entry passes the macro-sum gate (protein*4 + carbs*4 + fat*9 within 15% of kcal). parseFood and the in-app food search now resolve entirely offline — no network, no rate limits, deterministic results. This fixed noisy branded matches (a single tostada previously read 470 kcal; it is now 231 kcal). Also fixed a parser bug where size words were stripped before matching, so proper-noun foods like 'big mac' and 'medium fries' parsed as big*mac / medium*fries — a new scoreFoodPhrase() tries the full phrase first and only falls back to size-word quantity parsing when there is no strong branded match."
+    },
+    {
+      "date": "2026-07-19",
+      "commit": "b5fa24f",
+      "title": "Nutrition logging: meal selector, add/omit foods, real-DB accuracy",
+      "summary": "Choose which meal to log to (Breakfast/Lunch/Dinner/Snack); add foods via real search (curated + Open Food Facts + USDA) and remove foods before saving; unknown foods auto-upgrade from a flat estimate to a real lookup; removing a saved meal also deletes it from Supabase; bottom nav added to programme detail; workout exit changed to a clear ×.",
+      "verified": "Logged 3 items all to Lunch; 'starbucks caramel' → curated Frappuccino 380kcal; meal_type persisted."
+    },
+    {
+      "date": "2026-07-19",
+      "commit": "7603edf",
+      "title": "In-app admin panel",
+      "summary": "AdminScreen with Overview/Users/Feedback/Requests tabs; plan management (free/trial/paying); admin-only SECURITY DEFINER RPCs; feedback category selector powers 'most requested'; prominent Profile entry.",
+      "verified": "Anon denied on every admin RPC; plan toggle persisted; overview shows real counts."
+    },
+    {
+      "date": "2026-07-19",
+      "commit": "e598934",
+      "title": "Fix: Progress/Programmes showed demo data to real accounts",
+      "summary": "Progress totals, weekly chart, streak, programme progress now from real rosa_sessions (new account = zeros). Badges earned from real activity only and persisted to rosa_badges. Programmes split into 'Your programme' + 'Explore other'; ACTIVE follows the user's real choice. 'Start this programme' now persists the switch.",
+      "verified": "New account shows 0 sessions / 0% / no badges; programme switch new_mum→booty persisted."
+    },
+    {
+      "date": "2026-07-19",
+      "commit": "8db74c6",
+      "title": "Admin access + case-insensitive check",
+      "summary": "Added elvarosaflores@seze.app to the allowlist; is_seze_admin() now compares case-insensitively; admins get a 'Review feedback'/admin entry on Profile — no dev URL needed.",
+      "verified": "Non-admin does not see the admin card; admin does."
+    },
+    {
+      "date": "2026-07-19",
+      "commit": "2e1fafb",
+      "title": "Dev mode + reviewable feedback",
+      "summary": "Dev button restored (localhost always; production via sticky ?dev=1). Feedback works logged-out (anon user_id null; RLS blocks impersonation), with optional email and real success/error states. Feedback review screen with status triage. Workout-content engine (distinct sessions per programme).",
+      "verified": "Anon feedback 201; impersonation 401; triage persisted."
+    },
+    {
+      "date": "2026-07-18",
+      "commit": "7336642",
+      "title": "Backend functionality: real user data, safe nutrition, auth flow",
+      "summary": "AppData provider loads real rosa_users + today's nutrition + session streak. Home/Nutrition/Profile show real data. Onboarding upserts full profile with life-stage-safe macro targets. Auth: Sign Up→signup, verify→onboarding, sign out, Apple/Meta 'coming soon'. iOS 16px input fix; a11y.",
+      "verified": "Signup→trigger→onboarding save (2450kcal safe)→real targets→meal logging all persist."
+    },
+    {
+      "date": "2026-07-18",
+      "commit": "e0b49f5",
+      "title": "Backend fixes + security hardening + nutrition data",
+      "summary": "profiles→rosa_users (maybeSingle), onboarding macro targets, workout session logging. Security: fixed a SECURITY DEFINER view leaking all users' nutrition data, feedback-spoof policy, function search_path. Deployed nutrition-search edge fn + seeded 55 fast-food items.",
+      "verified": "Supabase security advisor clear except the dashboard leaked-password toggle."
+    },
+    {
+      "date": "2026-07-18",
+      "commit": "4d77089",
+      "title": "SEZE rebrand",
+      "summary": "Real brand infinity logo (extracted transparent white/pink PNGs), Poppins Bold wordmark, exact palette (#E04486 / #15B5A6), favicon + app icons + manifest, photo-rich rebuild of every screen using real model photography, unified vector-icon library (emojis removed), Train/Eat/[Home ∞]/Progress/Me nav.",
+      "verified": "Logo, splash, auth, home, programmes verified in-browser; matches brand pack."
+    }
   ],
   "verifications": [
-    { "flow": "Sign-up → profile row", "result": "pass", "evidence": "New auth.users row; trigger handle_new_user() auto-created rosa_users with full_name + consent metadata." },
-    { "flow": "Log-in → routing", "result": "pass", "evidence": "Reads rosa_users.onboarding_complete; new user routed to onboarding, not home." },
-    { "flow": "Onboarding → persistence", "result": "pass", "evidence": "Upsert wrote life_stage, goals, programme_id, height/weight, targets. New-mum got 2450kcal (lactation +330, NOT a deficit)." },
-    { "flow": "Nutrition logging", "result": "pass", "evidence": "3 items written to rosa_nutrition_logs with chosen meal_type=lunch; searched Starbucks Frappuccino logged at 380kcal." },
-    { "flow": "Nutrition search accuracy", "result": "pass", "evidence": "'starbucks caramel' returned curated Frappuccino (SEZE) top, then Open Food Facts results." },
-    { "flow": "Programme switch", "result": "pass", "evidence": "'Start this programme' persisted programme_id new_mum→booty; all screens follow it." },
-    { "flow": "Progress = real data", "result": "pass", "evidence": "New account shows 0 sessions / 0.0 avg / 0% / no badges (was inheriting demo data)." },
-    { "flow": "Feedback (anonymous)", "result": "pass", "evidence": "Anon submit HTTP 201; impersonation attempt 401; anon read of others' feedback empty." },
-    { "flow": "Feedback (admin review + triage)", "result": "pass", "evidence": "Admin sees all; status change to 'reviewed' persisted in Postgres." },
-    { "flow": "Admin RPC security", "result": "pass", "evidence": "admin_overview / admin_users return 'not authorised' for anon; plan toggle persisted (free→trial + start date)." },
-    { "flow": "Security: RLS data leak", "result": "pass", "evidence": "rosa_daily_nutrition view set security_invoker=on; anon can no longer read all users' totals." }
+    {
+      "flow": "Nutrition parse + search (local DB)",
+      "result": "pass",
+      "evidence": "560-item runtime DB (526 curated + bundled fallback, deduped). Spot-checks vs known values: tostada 231, banana 107, Big Mac 563, KFC Zinger 450, chicken breast 214, Starbucks Caramel Frappuccino 380. 'big mac and medium fries' now resolves to McDonald's Big Mac 563 + McDonald's Medium Fries 337 (was cheese sauce + BK fries). '2 big apples' still uses size-word path -> apple x2.8. No external API calls."
+    },
+    {
+      "flow": "Sign-up → profile row",
+      "result": "pass",
+      "evidence": "New auth.users row; trigger handle_new_user() auto-created rosa_users with full_name + consent metadata."
+    },
+    {
+      "flow": "Log-in → routing",
+      "result": "pass",
+      "evidence": "Reads rosa_users.onboarding_complete; new user routed to onboarding, not home."
+    },
+    {
+      "flow": "Onboarding → persistence",
+      "result": "pass",
+      "evidence": "Upsert wrote life_stage, goals, programme_id, height/weight, targets. New-mum got 2450kcal (lactation +330, NOT a deficit)."
+    },
+    {
+      "flow": "Nutrition logging",
+      "result": "pass",
+      "evidence": "3 items written to rosa_nutrition_logs with chosen meal_type=lunch; searched Starbucks Frappuccino logged at 380kcal."
+    },
+    {
+      "flow": "Nutrition search accuracy",
+      "result": "pass",
+      "evidence": "'starbucks caramel' returned curated Frappuccino (SEZE) top, then Open Food Facts results."
+    },
+    {
+      "flow": "Programme switch",
+      "result": "pass",
+      "evidence": "'Start this programme' persisted programme_id new_mum→booty; all screens follow it."
+    },
+    {
+      "flow": "Progress = real data",
+      "result": "pass",
+      "evidence": "New account shows 0 sessions / 0.0 avg / 0% / no badges (was inheriting demo data)."
+    },
+    {
+      "flow": "Feedback (anonymous)",
+      "result": "pass",
+      "evidence": "Anon submit HTTP 201; impersonation attempt 401; anon read of others' feedback empty."
+    },
+    {
+      "flow": "Feedback (admin review + triage)",
+      "result": "pass",
+      "evidence": "Admin sees all; status change to 'reviewed' persisted in Postgres."
+    },
+    {
+      "flow": "Admin RPC security",
+      "result": "pass",
+      "evidence": "admin_overview / admin_users return 'not authorised' for anon; plan toggle persisted (free→trial + start date)."
+    },
+    {
+      "flow": "Security: RLS data leak",
+      "result": "pass",
+      "evidence": "rosa_daily_nutrition view set security_invoker=on; anon can no longer read all users' totals."
+    }
   ],
   "risks": [
-    { "id": "R1", "risk": "No real workout content beyond the built rotation; programmes now have distinct sessions but not full multi-week curricula with form video", "impact": "Medium", "likelihood": "Medium", "mitigation": "Build per-programme week-by-week content + demo video before public launch.", "status": "Partially mitigated" },
-    { "id": "R2", "risk": "No pre-workout medical-clearance gate for pregnancy / early postnatal", "impact": "High", "likelihood": "Medium", "mitigation": "Add a clearance confirmation + physician-advised flag before heavy loading for perinatal stages.", "status": "Open" },
-    { "id": "R3", "risk": "USDA nutrition lookups use the rate-limited DEMO_KEY", "impact": "Medium", "likelihood": "High", "mitigation": "Add a free USDA FoodData Central key as the USDA_API_KEY secret on the nutrition-search function.", "status": "Open" },
-    { "id": "R4", "risk": "No payment provider — 'paying' plan is set manually", "impact": "Medium", "likelihood": "High", "mitigation": "Wire Stripe; hook its webhook to admin_set_plan; add MRR/churn to the admin panel.", "status": "Open" },
-    { "id": "R5", "risk": "Leaked-password protection disabled; no CAPTCHA", "impact": "Medium", "likelihood": "Medium", "mitigation": "Enable HaveIBeenPwned + min length 8-10 + Turnstile in Supabase Auth (dashboard toggles).", "status": "Open" },
-    { "id": "R6", "risk": "Consent/age captured client-side in editable metadata", "impact": "Medium", "likelihood": "Low", "mitigation": "Persist immutable timestamped consent server-side with policy version; add age assurance.", "status": "Open" },
-    { "id": "R7", "risk": "Branded auth emails / deliverability not configured (e.g. @seze.app mailboxes)", "impact": "Medium", "likelihood": "Medium", "mitigation": "Configure custom SMTP + branded SEZE templates in Supabase Auth.", "status": "Open" },
-    { "id": "R8", "risk": "CDN + in-browser Babel, single 3.7k-line file, no offline runtime", "impact": "Low", "likelihood": "High", "mitigation": "Precompile to a bundled build + service worker as feature velocity grows.", "status": "Accepted (beta)" },
-    { "id": "R9", "risk": "Vercel build queue can stall (observed 12-23min queued vs usual 2-6s)", "impact": "Low", "likelihood": "Low", "mitigation": "Use a prebuilt deploy to bypass the queue: vercel build --prod && vercel deploy --prebuilt --prod.", "status": "Mitigated" }
+    {
+      "id": "R1",
+      "risk": "No real workout content beyond the built rotation; programmes now have distinct sessions but not full multi-week curricula with form video",
+      "impact": "Medium",
+      "likelihood": "Medium",
+      "mitigation": "Build per-programme week-by-week content + demo video before public launch.",
+      "status": "Partially mitigated"
+    },
+    {
+      "id": "R2",
+      "risk": "No pre-workout medical-clearance gate for pregnancy / early postnatal",
+      "impact": "High",
+      "likelihood": "Medium",
+      "mitigation": "Add a clearance confirmation + physician-advised flag before heavy loading for perinatal stages.",
+      "status": "Open"
+    },
+    {
+      "id": "R3",
+      "risk": "Nutrition data source",
+      "impact": "Low",
+      "likelihood": "Low",
+      "mitigation": "RESOLVED 2026-07-20: nutrition is now a curated, macro-validated local DB (foods.json, 526 items) served as a static asset. No Open Food Facts / USDA / DEMO_KEY dependency. Trade-off: coverage is bounded to the curated set; unknown foods fall back to a labelled flat estimate. Grow the DB as gaps surface.",
+      "status": "resolved"
+    },
+    {
+      "id": "R4",
+      "risk": "No payment provider — 'paying' plan is set manually",
+      "impact": "Medium",
+      "likelihood": "High",
+      "mitigation": "Wire Stripe; hook its webhook to admin_set_plan; add MRR/churn to the admin panel.",
+      "status": "Open"
+    },
+    {
+      "id": "R5",
+      "risk": "Leaked-password protection disabled; no CAPTCHA",
+      "impact": "Medium",
+      "likelihood": "Medium",
+      "mitigation": "Enable HaveIBeenPwned + min length 8-10 + Turnstile in Supabase Auth (dashboard toggles).",
+      "status": "Open"
+    },
+    {
+      "id": "R6",
+      "risk": "Consent/age captured client-side in editable metadata",
+      "impact": "Medium",
+      "likelihood": "Low",
+      "mitigation": "Persist immutable timestamped consent server-side with policy version; add age assurance.",
+      "status": "Open"
+    },
+    {
+      "id": "R7",
+      "risk": "Branded auth emails / deliverability not configured (e.g. @seze.app mailboxes)",
+      "impact": "Medium",
+      "likelihood": "Medium",
+      "mitigation": "Configure custom SMTP + branded SEZE templates in Supabase Auth.",
+      "status": "Open"
+    },
+    {
+      "id": "R8",
+      "risk": "CDN + in-browser Babel, single 3.7k-line file, no offline runtime",
+      "impact": "Low",
+      "likelihood": "High",
+      "mitigation": "Precompile to a bundled build + service worker as feature velocity grows.",
+      "status": "Accepted (beta)"
+    },
+    {
+      "id": "R9",
+      "risk": "Vercel build queue can stall (observed 12-23min queued vs usual 2-6s)",
+      "impact": "Low",
+      "likelihood": "Low",
+      "mitigation": "Use a prebuilt deploy to bypass the queue: vercel build --prod && vercel deploy --prebuilt --prod.",
+      "status": "Mitigated"
+    }
   ],
   "roadmap": [
-    { "item": "Perinatal medical-clearance gate before heavy loading", "priority": "High", "status": "next" },
-    { "item": "Per-programme multi-week content + exercise demo video", "priority": "High", "status": "open" },
-    { "item": "Stripe payments → auto plan updates + revenue metrics", "priority": "High", "status": "open" },
-    { "item": "USDA API key + wire barcode scan; log fibre/sugar/sodium", "priority": "Medium", "status": "open" },
-    { "item": "Quick-track Water/Mood/Weight UI → rosa_daily_logs / rosa_body_stats (tables ready)", "priority": "Medium", "status": "open" },
-    { "item": "Account settings: edit profile, change goal, notifications, set-new-password", "priority": "Medium", "status": "open" },
-    { "item": "Brand-value features: progress photos, cycle awareness, pelvic-floor guidance, sleep/recovery, community", "priority": "Medium", "status": "open" },
-    { "item": "Harden for scale: leaked-password protection, CAPTCHA, server-side consent, branded SMTP, precompiled build", "priority": "Medium", "status": "open" }
+    {
+      "item": "Perinatal medical-clearance gate before heavy loading",
+      "priority": "High",
+      "status": "next"
+    },
+    {
+      "item": "Per-programme multi-week content + exercise demo video",
+      "priority": "High",
+      "status": "open"
+    },
+    {
+      "item": "Stripe payments → auto plan updates + revenue metrics",
+      "priority": "High",
+      "status": "open"
+    },
+    {
+      "item": "USDA API key + wire barcode scan; log fibre/sugar/sodium",
+      "priority": "Medium",
+      "status": "open"
+    },
+    {
+      "item": "Quick-track Water/Mood/Weight UI → rosa_daily_logs / rosa_body_stats (tables ready)",
+      "priority": "Medium",
+      "status": "open"
+    },
+    {
+      "item": "Account settings: edit profile, change goal, notifications, set-new-password",
+      "priority": "Medium",
+      "status": "open"
+    },
+    {
+      "item": "Brand-value features: progress photos, cycle awareness, pelvic-floor guidance, sleep/recovery, community",
+      "priority": "Medium",
+      "status": "open"
+    },
+    {
+      "item": "Harden for scale: leaked-password protection, CAPTCHA, server-side consent, branded SMTP, precompiled build",
+      "priority": "Medium",
+      "status": "open"
+    }
   ],
   "decisions": [
-    { "decision": "AI/LLM deferred for the testing phase", "rationale": "Keep the fast local food parser + real DB lookup now; wire an LLM later. No Railway needed — the analyze-image Edge Function already exists." },
-    { "decision": "Nutrition data = Open Food Facts + USDA + curated fast-food table", "rationale": "Free, no scraping fragility; curated table gives accurate UK/US chain items; OFF/USDA cover the long tail." },
-    { "decision": "Matcher prioritises life stage over goal, but users can switch", "rationale": "A postnatal body shouldn't be dropped into heavy glute loading; but 'Start this programme' now lets the user override and persists it." },
-    { "decision": "Profile table is rosa_users, not profiles", "rationale": "The app wrote to a non-existent 'profiles' table — the real table (with the signup trigger + RLS) is rosa_users. All reads/writes realigned." },
-    { "decision": "Admin gated by a rosa_admins allowlist + SECURITY DEFINER RPCs", "rationale": "Data stays safe even if the UI leaks; add/remove admins with one SQL insert; check is case-insensitive." },
-    { "decision": "Anon Supabase key in the frontend is safe", "rationale": "It is the public anon key; every table's RLS is auth.uid()-scoped and was verified correct." }
+    {
+      "decision": "AI/LLM deferred for the testing phase",
+      "rationale": "Keep the fast local food parser + real DB lookup now; wire an LLM later. No Railway needed — the analyze-image Edge Function already exists."
+    },
+    {
+      "decision": "Nutrition data = Open Food Facts + USDA + curated fast-food table",
+      "rationale": "Free, no scraping fragility; curated table gives accurate UK/US chain items; OFF/USDA cover the long tail."
+    },
+    {
+      "decision": "Matcher prioritises life stage over goal, but users can switch",
+      "rationale": "A postnatal body shouldn't be dropped into heavy glute loading; but 'Start this programme' now lets the user override and persists it."
+    },
+    {
+      "decision": "Profile table is rosa_users, not profiles",
+      "rationale": "The app wrote to a non-existent 'profiles' table — the real table (with the signup trigger + RLS) is rosa_users. All reads/writes realigned."
+    },
+    {
+      "decision": "Admin gated by a rosa_admins allowlist + SECURITY DEFINER RPCs",
+      "rationale": "Data stays safe even if the UI leaks; add/remove admins with one SQL insert; check is case-insensitive."
+    },
+    {
+      "decision": "Anon Supabase key in the frontend is safe",
+      "rationale": "It is the public anon key; every table's RLS is auth.uid()-scoped and was verified correct."
+    }
   ],
   "infra": {
     "Tables (public)": "rosa_users (profile), rosa_sessions, rosa_nutrition_logs, rosa_body_stats, rosa_badges, rosa_feedback, rosa_daily_logs, rosa_food_items, rosa_admins",
@@ -73,12 +302,75 @@
     "Deploy": "Vercel (rosa-app) → rosa-app-ten.vercel.app; git github.com/JosephMichaelDaniels/Rosa (main)"
   },
   "findingStatus": {
-    "BE-01": "FIXED", "BE-02": "FIXED", "BE-03": "FIXED", "BE-04": "FIXED", "BE-05": "FIXED", "BE-06": "MITIGATED", "BE-07": "FIXED", "BE-08": "FIXED", "BE-09": "ROADMAP",
-    "NU-01": "FIXED", "NU-02": "FIXED", "NU-03": "FIXED", "NU-04": "FIXED", "NU-05": "ROADMAP", "NU-06": "FIXED", "NU-07": "MITIGATED", "NU-08": "FIXED", "NU-09": "FIXED", "NU-10": "ROADMAP", "NU-11": "ROADMAP", "NU-12": "FIXED",
-    "SAF-01": "FIXED", "SAF-02": "ROADMAP",
-    "SEC-01": "FIXED", "SEC-02": "DEFERRED", "SEC-03": "FIXED", "SEC-04": "FIXED", "SEC-05": "ROADMAP", "SEC-06": "MITIGATED",
-    "FE-01": "MITIGATED", "FE-02": "FIXED", "FE-03": "FIXED", "FE-04": "FIXED", "FE-05": "FIXED", "FE-06": "ROADMAP", "FE-07": "MITIGATED", "FE-08": "FIXED", "FE-09": "FIXED", "FE-10": "ROADMAP", "FE-11": "MITIGATED", "FE-12": "FIXED", "FE-13": "FIXED", "FE-14": "FIXED", "FE-15": "MITIGATED", "FE-16": "ROADMAP", "FE-17": "ROADMAP", "FE-18": "FIXED", "FE-19": "FIXED", "FE-20": "ROADMAP", "FE-21": "ROADMAP", "FE-22": "FIXED", "FE-23": "ROADMAP",
-    "DS-01": "FIXED", "DS-02": "ROADMAP", "DS-03": "ROADMAP", "DS-04": "ROADMAP", "DS-05": "ROADMAP", "DS-06": "FIXED", "DS-07": "ROADMAP", "DS-08": "FIXED", "DS-09": "ROADMAP",
-    "PR-01": "ROADMAP", "PR-02": "ROADMAP", "PR-03": "ROADMAP", "PR-04": "ROADMAP", "PR-05": "FIXED", "PR-06": "ROADMAP", "PR-07": "ROADMAP", "PR-08": "ROADMAP", "PR-09": "ROADMAP"
+    "BE-01": "FIXED",
+    "BE-02": "FIXED",
+    "BE-03": "FIXED",
+    "BE-04": "FIXED",
+    "BE-05": "FIXED",
+    "BE-06": "MITIGATED",
+    "BE-07": "FIXED",
+    "BE-08": "FIXED",
+    "BE-09": "ROADMAP",
+    "NU-01": "FIXED",
+    "NU-02": "FIXED",
+    "NU-03": "FIXED",
+    "NU-04": "FIXED",
+    "NU-05": "ROADMAP",
+    "NU-06": "FIXED",
+    "NU-07": "MITIGATED",
+    "NU-08": "FIXED",
+    "NU-09": "FIXED",
+    "NU-10": "ROADMAP",
+    "NU-11": "ROADMAP",
+    "NU-12": "FIXED",
+    "SAF-01": "FIXED",
+    "SAF-02": "ROADMAP",
+    "SEC-01": "FIXED",
+    "SEC-02": "DEFERRED",
+    "SEC-03": "FIXED",
+    "SEC-04": "FIXED",
+    "SEC-05": "ROADMAP",
+    "SEC-06": "MITIGATED",
+    "FE-01": "MITIGATED",
+    "FE-02": "FIXED",
+    "FE-03": "FIXED",
+    "FE-04": "FIXED",
+    "FE-05": "FIXED",
+    "FE-06": "ROADMAP",
+    "FE-07": "MITIGATED",
+    "FE-08": "FIXED",
+    "FE-09": "FIXED",
+    "FE-10": "ROADMAP",
+    "FE-11": "MITIGATED",
+    "FE-12": "FIXED",
+    "FE-13": "FIXED",
+    "FE-14": "FIXED",
+    "FE-15": "MITIGATED",
+    "FE-16": "ROADMAP",
+    "FE-17": "ROADMAP",
+    "FE-18": "FIXED",
+    "FE-19": "FIXED",
+    "FE-20": "ROADMAP",
+    "FE-21": "ROADMAP",
+    "FE-22": "FIXED",
+    "FE-23": "ROADMAP",
+    "DS-01": "FIXED",
+    "DS-02": "ROADMAP",
+    "DS-03": "ROADMAP",
+    "DS-04": "ROADMAP",
+    "DS-05": "ROADMAP",
+    "DS-06": "FIXED",
+    "DS-07": "ROADMAP",
+    "DS-08": "FIXED",
+    "DS-09": "ROADMAP",
+    "PR-01": "ROADMAP",
+    "PR-02": "ROADMAP",
+    "PR-03": "ROADMAP",
+    "PR-04": "ROADMAP",
+    "PR-05": "FIXED",
+    "PR-06": "ROADMAP",
+    "PR-07": "ROADMAP",
+    "PR-08": "ROADMAP",
+    "PR-09": "ROADMAP"
   }
 }
