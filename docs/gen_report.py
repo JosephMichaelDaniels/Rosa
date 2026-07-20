@@ -65,7 +65,17 @@ decs = ''.join(f'<div class="dec"><div class="dt">{esc(d["decision"])}</div><div
 infra = ''.join(f'<div class="kv"><b>{esc(k)}</b><span>{esc(v)}</span></div>' for k, v in D['infra'].items())
 
 m = D['meta']
-HTML = f'''<title>SEZE — Developer Report (live)</title>
+HTML = f'''<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<meta name="robots" content="noindex, nofollow">
+<meta name="theme-color" content="#E04486">
+<title>SEZE — Developer Report</title>
+<style>
+html,body{{margin:0;padding:0}}
+</style>
 <style>
 :root{{ --bg:#faf7f8; --panel:#fff; --ink:#1A0D14; --muted:#6b6570; --line:#ece5e9; --pink:#E04486; --teal:#15B5A6; --soft:#fff0f5; }}
 @media (prefers-color-scheme:dark){{ :root{{ --bg:#131016; --panel:#1c181f; --ink:#f4eef1; --muted:#a89fa8; --line:#2c2630; --soft:#241a20; }} }}
@@ -124,6 +134,8 @@ tr:last-child td{{border-bottom:none}}
 .foot code{{background:var(--soft);border-radius:5px;padding:1px 6px;font-size:12px}}
 @media(max-width:720px){{.tiles,.status-row{{grid-template-columns:repeat(2,1fr)}} .kv b{{min-width:110px}}}}
 </style>
+</head>
+<body>
 
 <div class="hero"><div class="in">
  <span class="badge">Live developer report · updated {esc(m["generated"])}</span>
@@ -173,10 +185,13 @@ tr:last-child td{{border-bottom:none}}
 <div class="card">{infra}</div>
 
 <div class="foot">
- <b>How this doc stays current.</b> It is generated from <code>docs/dev-report.json</code> (the version-controlled source of truth) plus <code>docs/audit-register.json</code>. To update: edit the JSON, run <code>python3 docs/gen_report.py</code>, then republish the HTML to this same link. Live in-app metrics (members, revenue, feedback) are in the app's <b>Admin panel</b>. Generated {esc(m["generated"])} from <code>main</code>.
+ <b>How this doc stays current.</b> Generated from <code>docs/dev-report.json</code> (the version-controlled source of truth) plus <code>docs/audit-register.json</code>. To update: edit the JSON, run <code>python3 docs/gen_report.py</code>, then redeploy. Live in-app metrics (members, revenue, feedback) are in the app's <b>Admin panel</b>. Generated {esc(m["generated"])} from <code>main</code>.
 </div>
 </div>
+</body>
+</html>
 '''
-OUT = os.path.join(HERE, 'DEVELOPER-APP-REPORT.html')
-open(OUT, 'w').write(HTML)
-print(f"wrote {OUT} ({len(HTML)} bytes) · findings {len(REG)} · counts {counts}")
+# Standalone doc for hosting (Vercel) + local viewing
+for OUT in [os.path.join(HERE, 'DEVELOPER-APP-REPORT.html'), os.path.join(HERE, '..', 'report.html')]:
+    open(OUT, 'w').write(HTML)
+print(f"wrote report.html + docs/DEVELOPER-APP-REPORT.html ({len(HTML)} bytes) · findings {len(REG)} · counts {counts}")
